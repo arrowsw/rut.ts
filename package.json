@@ -1,17 +1,26 @@
 {
   "name": "rut.ts",
   "version": "1.0.0",
-  "description": "",
+  "description": "Just another toolkit library for working with RUTs in JavaScript (TypeScript)",
+  "author": "hansfpc",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc",
+    "prepublish": "npm run build"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "prepublish": "tsc",
+  "license": "MIT",
   "devDependencies": {
     "typescript": "^4.6.2"
-  }
+  },
+  "keywords": [
+    "validation",
+    "check",
+    "verifierDigit",
+    "chilean",
+    "rut",
+    "formatting",
+    "node",
+    "browser"
+  ]
 }
