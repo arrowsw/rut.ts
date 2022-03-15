@@ -1,7 +1,8 @@
 <div align="center">
-  <img src="https://user-images.githubusercontent.com/12705403/158302995-3da9ad34-a141-4eca-bff2-3cce9c0199b1.png" alt="Ventahogar Logo" width="100%">
+  <img src="https://user-images.githubusercontent.com/12705403/158434864-7f13401a-b973-4267-b035-d9882cf6c545.png" alt="Rut.ts logo" width="100%">
   <h1>Rut.ts: Handle chilean RUT values with ease</h1>
 </div>
+
 
 This is an isomorphic TypeScript library. Just ~5kb.
 
