@@ -3,7 +3,10 @@ node_modules
 .gitignore
 .idea
 .vscode
-yarn.lock
 package-lock.json
-.prettierrc
-__tests__
+.prettierrc.json
+.npmrc
+.eslintrc
+jestconfig.json
+tsconfig.json
+tests
