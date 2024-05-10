@@ -2,3 +2,12 @@ dist/
 .idea/
 .vscode/
 node_modules
+.DS_Store
+
+docs/node_modules
+docs/.next
+docs/dist
+docs/out
+docs/.out
+docs/.idea
+docs/.vscode

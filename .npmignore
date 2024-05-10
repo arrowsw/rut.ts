@@ -10,3 +10,4 @@ package-lock.json
 jestconfig.json
 tsconfig.json
 tests
+docs
