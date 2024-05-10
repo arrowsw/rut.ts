@@ -1,9 +1,14 @@
-import { Tabs } from 'nextra/components'
-import { Cards, Card } from 'nextra/components'
+import { Cards, Card, Callout, Tabs } from 'nextra/components'
+import { NextSeo } from 'next-seo';
 
-# Handle chilean RUT values with ease, no bs.
+<NextSeo
+  title="Validate and format chilean RUTs using TypeScript with ease."
+  description="Handle chilean RUT values with ease."
+/>
 
-## Installation
+# 🇨🇱 Handle chilean RUT values with ease
+
+## 📦 Installation
 
 <Tabs items={['npm', 'pnpm', 'yarn']}>
     <Tabs.Tab>
@@ -23,7 +28,7 @@ import { Cards, Card } from 'nextra/components'
 </Tabs.Tab>
 </Tabs>
 
-## Features
+## 💎 Features
 
 <Cards>
     <Card icon={<img src="https://skillicons.dev/icons?i=ts" />} title="Validate" href="/features/validate" />
@@ -33,7 +38,15 @@ import { Cards, Card } from 'nextra/components'
     <Card icon={<img src="https://skillicons.dev/icons?i=ts" />} title="Decompose" href="/features/decompose" />
 </Cards>
 
+## ❓ Frecuently Asked Questions
 
-## Contributing
-
-Contributions to this library are welcome. Please feel free to submit pull requests or create issues for bugs and feature requests.
+- **What is a chilean RUT?**
+<Callout type="info" emoji="ℹ️">
+  A chilean RUT is a unique identification number assigned to each chilean citizen and resident. It is used for tax purposes, voting, and other government-related activities. The RUT is composed of a body and a verifier digit, separated by a hyphen. The body is a sequence of numbers, and the verifier is a single digit or the letter 'K'. The RUT is formatted as 'XX.XXX.XXX-Y'.
+</Callout>
+- **What is a chilean TIN?**
+<Callout type="info" emoji="ℹ️">
+  A chilean TIN is a Tax Identification Number, it is just another equivalent acronym for the RUT (Rol Único Tributario).
+</Callout>
+- [**How to contribute to this project?**](/contributing)
+- [**Does this project have tests?**](/testing)
