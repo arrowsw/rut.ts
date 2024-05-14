@@ -23,6 +23,12 @@
   },
   "ignorePatterns": [
     "dist/",
-    "node_modules/"
-  ]
+    "node_modules/",
+    "*.min.js"
+  ],
+  "settings": {
+    "next": {
+      "rootDir": "./docs/"
+    }
+  }
 }
