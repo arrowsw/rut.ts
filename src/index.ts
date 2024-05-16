@@ -1,41 +1,54 @@
 type ValidationPatterns = { rutLike: RegExp; suspicious: RegExp; cleaning: RegExp }
 type DecomposedRut = { body: string; verifier: string }
 
-const getInvalidRutError = (rut: string): string => `String "${rut}" is not valid as a RUT input`
+export const getInvalidRutError = (rut: string): string => `String "${rut}" is not valid as a RUT input`
+export const getInvalidRutBodyError = (rutBody: string): string =>
+  `String "${rutBody}" is not valid as a RUT Body input`
+const MIN_RUT_LENGTH = 8
+const MAX_RUT_LENGTH = 9
 
 const patterns: ValidationPatterns = {
   cleaning: /^0+|[^0-9kK]+/g,
   rutLike: /^0*(\d{1,3}(\.?\d{3})*)-?([\dkK])$/,
-  suspicious: /^(\d)\1?\.?(\1{3})\.?(\1{3})-?(\d|kK)?$/gi,
+  suspicious: /^(\d)\1?\.?(\1{3})\.?(\1{3})-?(\d|k)?$/,
 }
 
 const clean = (rut: string): string => {
-  const cleanRut = rut.toUpperCase().replace(patterns.cleaning, '')
-  if (cleanRut.length < 8 || cleanRut.length > 9) throw new Error(getInvalidRutError(rut))
+  const cleanRut = rut.replace(patterns.cleaning, '').toUpperCase()
+  if (cleanRut.length < MIN_RUT_LENGTH || cleanRut.length > MAX_RUT_LENGTH) throw new Error(getInvalidRutError(rut))
+  if (cleanRut.includes('K') && cleanRut.indexOf('K') !== cleanRut.length - 1) throw new Error(getInvalidRutError(rut))
   return cleanRut
 }
+
+const getBody = (rut: string): string => clean(rut).slice(0, -1)
+const getVerifier = (rut: string): string => clean(rut).slice(-1)
+const decompose = (rut: string): DecomposedRut => ({ body: getBody(rut), verifier: getVerifier(rut) })
 
 const isRutLike = (rut: string): boolean => patterns.rutLike.test(rut)
 
 const isSuspicious = (rut: string): boolean => patterns.suspicious.test(rut)
 
+const calculateVerifier = (rutBody: string): string => {
+  const cleanedRut = clean(rutBody)
+  if (cleanedRut.length === 0) throw new Error(getInvalidRutError(rutBody))
+
+  const sum = cleanedRut
+    .split('')
+    .reverse()
+    .reduce((acc, digit, index) => acc + Number(digit) * ((index % 6) + 2), 0)
+
+  const checkDigit = 11 - (sum % 11)
+  return checkDigit === 11 ? '0' : checkDigit === 10 ? 'K' : checkDigit.toString()
+}
+
 const validate = (rut: string, strict?: boolean): boolean => {
   if (!isRutLike(rut)) return false
   if (strict && isSuspicious(rut)) return false
 
-  const r = clean(rut)
+  const { body, verifier } = decompose(rut)
+  const calculatedVerifier = calculateVerifier(body)
 
-  let t = parseInt(r.slice(0, -1), 10)
-  let m = 0
-  let s = 1
-
-  while (t > 0) {
-    s = (s + (t % 10) * (9 - (m++ % 6))) % 11
-    t = Math.floor(t / 10)
-  }
-
-  const v = s > 0 ? '' + (s - 1) : 'K'
-  return v === r.slice(-1)
+  return calculatedVerifier === verifier
 }
 
 const format = (rut: string, dots: boolean = true): string => {
@@ -51,31 +64,8 @@ const format = (rut: string, dots: boolean = true): string => {
   return cleanRut.slice(0, -1) + '-' + cleanRut.substring(cleanRut.length - 1)
 }
 
-const calculateVerifier = (rut: string): string => {
-  const r = Array.from(clean(rut), Number)
-
-  if (r.length === 0 || r.includes(NaN)) throw new Error(getInvalidRutError(rut))
-
-  const modulus = 11
-  const initialValue = 0
-  const sum = r
-    .reverse()
-    .reduce((accumulator, currentValue, index) => accumulator + currentValue * ((index % 6) + 2), initialValue)
-
-  const verifierDigit = modulus - (sum % modulus)
-
-  if (verifierDigit === 10) return 'K'
-  if (verifierDigit === 11) return '0'
-
-  return `${verifierDigit}`
-}
-
-const getBody = (rut: string): string => clean(rut).slice(0, -1)
-const getVerifier = (rut: string): string => clean(rut).slice(-1)
-const decompose = (rut: string): DecomposedRut => ({ body: getBody(rut), verifier: getVerifier(rut) })
-
 const generate = (): string => {
-  const body = Math.floor(Math.random() * (24999999 - 1000000 + 1) + 1000000).toString()
+  const body = Math.floor(10000003 + Math.random() * 90000000).toString()
   const verifier = calculateVerifier(body)
   return format(body + verifier)
 }

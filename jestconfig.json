@@ -1,9 +1,0 @@
-{
-  "preset": "ts-jest",
-  "transform": {
-    "^.+\\.(t|j)sx?$": "ts-jest"
-  },
-  "testRegex": "(/tests/.*|(\\.|/)(test|spec))\\.(js?|ts?)$",
-  "moduleFileExtensions": ["ts", "js", "json", "node"],
-  "testEnvironment": "node"
-}
