@@ -1,6 +1,6 @@
 {
   "name": "rut.ts",
-  "version": "1.4.0",
+  "version": "2.0.0",
   "description": "Handle chilean RUT values with ease.",
   "author": "hansfpc",
   "main": "./dist/cjs/index.min.js",
