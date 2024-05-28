@@ -10,6 +10,7 @@
 - **Formatting**: Convert RUTs into a standardized format, with or without dots.
 - **Decomposition**: Split a RUT into its body and verifier digit.
 - **Generation**: Generate valid random RUT numbers.
+- **Calculate Verifier**: Calculate the verifier digit for a given RUT body.
 
 ## Installation
 
