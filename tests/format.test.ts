@@ -3,7 +3,7 @@ import { format } from '../src'
 describe('format', () => {
   test('should correctly format RUTs with or without dots', () => {
     expect(format('189726317')).toBe('18.972.631-7')
-    expect(format('189726317', false, false)).toBe('18972631-7')
+    expect(format('189726317', { dots: false })).toBe('18972631-7')
   })
 
   test('Correctly formats with dots and hyphen', () => {
@@ -11,7 +11,7 @@ describe('format', () => {
   })
 
   test('Correctly formats without dots', () => {
-    expect(format('123456789', false, false)).toBe('12345678-9')
+    expect(format('123456789', { dots: false })).toBe('12345678-9')
   })
 
   test('Returns empty string if input is empty', () => {

@@ -11,8 +11,8 @@ export default {
     </>
   ),
   banner: {
-    key: '2.0-release',
-    text: <p>🎉 Rut.ts 2.0.0 is released!</p>,
+    key: '2.1-release',
+    text: <p>🎉 Rut.ts 2.1.0 is released!</p>,
   },
   footer: {
     text: (
