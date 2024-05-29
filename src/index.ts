@@ -1,5 +1,6 @@
 type ValidationPatterns = { rutLike: RegExp; suspicious: RegExp; cleaning: RegExp }
 type DecomposedRut = { body: string; verifier: string }
+type FormatOptions = { incremental?: boolean; dots?: boolean }
 
 export const getInvalidRutError = (rut: string): string => `String "${rut}" is not valid as a RUT input`
 
@@ -92,16 +93,18 @@ const validate = (rut: string, strict?: boolean): boolean => {
 /**
  * Formats a given RUT string, with options for incremental formatting and dot separators.
  * @param {string} rut - The RUT string to format.
- * @param {boolean} [incremental=false] - Whether to format the RUT incrementally.
- * @param {boolean} [dots=true] - Whether to include dot separators in the formatted RUT.
+ * @param options {FormatOptions} - The formatting options.
+ * @param {boolean} options.incremental - Whether to format the RUT incrementally.
+ * @param {boolean} options.dots - Whether to include dot separators in the formatted RUT.
  * @returns {string} The formatted RUT string.
  */
-const format = (rut: string, incremental: boolean = false, dots: boolean = true): string => {
+const format = (rut: string, options?: FormatOptions): string => {
+  const opts = { incremental: options?.incremental ?? false, dots: options?.dots ?? true }
   if (rut.length === 0) return ''
-  if (rut.length <= 6 && !dots) return rut
+  if (rut.length <= 6 && !opts.dots) return rut
   const cleanRut = clean(rut)
 
-  if (incremental) {
+  if (opts.incremental) {
     let result = cleanRut.slice(-1) // Start with verifier part
     if (cleanRut.length > 1) {
       result = cleanRut.slice(-4, -1) + '-' + result // Add separator for verifier
@@ -109,7 +112,7 @@ const format = (rut: string, incremental: boolean = false, dots: boolean = true)
 
     for (let i = 4; i < cleanRut.length; i += 3) {
       const start = cleanRut.length - 3 - i < 0 ? 0 : cleanRut.length - 3 - i
-      if (dots) {
+      if (opts.dots) {
         result = cleanRut.slice(start, cleanRut.length - i) + '.' + result // Add dots for the body
       } else {
         result = cleanRut.slice(start, cleanRut.length - i) + result // No dots for the body
@@ -119,7 +122,7 @@ const format = (rut: string, incremental: boolean = false, dots: boolean = true)
     return result
   }
 
-  if (dots) {
+  if (opts.dots) {
     let result = cleanRut.slice(-4, -1) + '-' + cleanRut.substring(cleanRut.length - 1)
     for (let i = 4; i < cleanRut.length; i += 3) {
       result = cleanRut.slice(-3 - i, -i) + '.' + result
