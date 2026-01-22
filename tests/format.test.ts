@@ -1,36 +1,157 @@
 import { format } from '../src'
 
 describe('format', () => {
-  test('should correctly format RUTs with or without dots', () => {
-    expect(format('189726317')).toBe('18.972.631-7')
-    expect(format('189726317', { dots: false })).toBe('18972631-7')
+  describe('with throwOnError: false (safe mode)', () => {
+    test('Returns null for invalid RUT instead of throwing', () => {
+      expect(format('123', { throwOnError: false })).toBeNull()
+    })
+
+    test('Returns formatted RUT when valid', () => {
+      expect(format('189726317', { throwOnError: false })).toBe('18.972.631-7')
+    })
+
+    test('Supports other options combined with throwOnError', () => {
+      expect(format('189726317', { dots: false, throwOnError: false })).toBe('18972631-7')
+    })
+
+    test('Returns null for RUTs that are too short', () => {
+      expect(format('1234567', { throwOnError: false })).toBeNull()
+    })
+
+    test('Returns null for RUTs that are too long', () => {
+      expect(format('12345678901', { throwOnError: false })).toBeNull()
+    })
   })
 
-  test('Correctly formats with dots and hyphen', () => {
-    expect(format('123456789')).toBe('12.345.678-9')
+  describe('incremental mode (progressive formatting)', () => {
+    test('Formats partial RUTs progressively (without hyphen until 8+ chars)', () => {
+      expect(format('1', { incremental: true })).toBe('1')
+      expect(format('12', { incremental: true })).toBe('12')
+      expect(format('123', { incremental: true })).toBe('123')
+      expect(format('1234', { incremental: true })).toBe('1.234')
+      expect(format('12345', { incremental: true })).toBe('12.345')
+      expect(format('123456', { incremental: true })).toBe('123.456')
+      expect(format('1234567', { incremental: true })).toBe('1.234.567')
+    })
+
+    test('Adds hyphen when RUT is complete (8+ chars)', () => {
+      // With 8 chars: 7 body + 1 verifier
+      expect(format('12345678', { incremental: true })).toBe('1.234.567-8')
+      // With 9 chars: 8 body + 1 verifier
+      expect(format('123456789', { incremental: true })).toBe('12.345.678-9')
+    })
+
+    test('Formats complete RUTs without dots', () => {
+      expect(format('1234', { incremental: true, dots: false })).toBe('1234')
+      expect(format('12345678', { incremental: true, dots: false })).toBe('1234567-8')
+      expect(format('123456789', { incremental: true, dots: false })).toBe('12345678-9')
+    })
+
+    test('Handles RUT with K verifier', () => {
+      expect(format('1234567K', { incremental: true })).toBe('1.234.567-K')
+      expect(format('1234567k', { incremental: true })).toBe('1.234.567-K')
+      expect(format('12345678K', { incremental: true })).toBe('12.345.678-K')
+    })
+
+    test('Returns empty string for empty input', () => {
+      expect(format('', { incremental: true })).toBe('')
+    })
+
+    test('Cleans input while formatting incrementally', () => {
+      expect(format('12.345', { incremental: true })).toBe('12.345')
+      expect(format('12-345-678', { incremental: true })).toBe('1.234.567-8')
+    })
+
+    test('Removes leading zeros in incremental mode', () => {
+      expect(format('00001234', { incremental: true })).toBe('1.234')
+      expect(format('00012345678', { incremental: true })).toBe('1.234.567-8')
+    })
+
+    test('Handles very long inputs (more than 9 digits)', () => {
+      expect(format('12345678901234', { incremental: true })).toBe('1.234.567.890.123-4')
+    })
+
+    test('Handles special characters in incremental mode', () => {
+      expect(format('12#34#56#78', { incremental: true })).toBe('1.234.567-8')
+    })
   })
 
-  test('Correctly formats without dots', () => {
-    expect(format('123456789', { dots: false })).toBe('12345678-9')
+  describe('standard formatting', () => {
+    test('should correctly format RUTs with or without dots', () => {
+      expect(format('189726317')).toBe('18.972.631-7')
+      expect(format('189726317', { dots: false })).toBe('18972631-7')
+    })
+
+    test('Correctly formats with dots and hyphen', () => {
+      expect(format('123456789')).toBe('12.345.678-9')
+    })
+
+    test('Correctly formats without dots', () => {
+      expect(format('123456789', { dots: false })).toBe('12345678-9')
+    })
+
+    test('Returns empty string if input is empty', () => {
+      expect(format('')).toBe('')
+    })
+
+    test('Correctly handles RUTs with K as verification digit', () => {
+      expect(format('1234567K')).toBe('1.234.567-K')
+      expect(format('09068826K')).toBe('9.068.826-K')
+    })
+
+    test('Correctly formats RUTs with leading zeros', () => {
+      expect(format('012345678')).toBe('1.234.567-8')
+      expect(format('009068826K')).toBe('9.068.826-K')
+    })
+
+    test('Correctly handles RUTs with non-numeric characters', () => {
+      expect(format('12.345.678-k')).toBe('12.345.678-K')
+      expect(format('12#345#678#K')).toBe('12.345.678-K')
+    })
+
+    test('Correctly handles RUTs with white spaces', () => {
+      expect(format(' 123 456 789 ')).toBe('12.345.678-9')
+    })
   })
 
-  test('Returns empty string if input is empty', () => {
-    expect(format('')).toBe('')
+  describe('edge cases', () => {
+    test('Formats 8-character RUTs (7 body + 1 verifier)', () => {
+      expect(format('09068826K')).toBe('9.068.826-K')
+      expect(format('12345678')).toBe('1.234.567-8')
+    })
+
+    test('Formats 9-character RUTs (8 body + 1 verifier)', () => {
+      expect(format('189726317')).toBe('18.972.631-7')
+      expect(format('123456785')).toBe('12.345.678-5')
+    })
+
+    test('Formats with verifier 0', () => {
+      expect(format('182649580')).toBe('18.264.958-0')
+    })
+
+    test('Already formatted RUTs remain unchanged', () => {
+      expect(format('18.972.631-7')).toBe('18.972.631-7')
+      expect(format('9.068.826-K')).toBe('9.068.826-K')
+    })
+
+    test('Handles RUT with only hyphens as separators', () => {
+      expect(format('12-345-678-9')).toBe('12.345.678-9')
+    })
   })
 
-  test('Correctly handles RUTs with K as verification digit', () => {
-    expect(format('1234567K')).toBe('1.234.567-K')
-  })
+  describe('error cases', () => {
+    test('Throws error for too short RUT', () => {
+      expect(() => format('1234567')).toThrow()
+      expect(() => format('123')).toThrow()
+    })
 
-  test('Correctly formats RUTs with leading zeros', () => {
-    expect(format('012345678')).toBe('1.234.567-8')
-  })
+    test('Throws error for too long RUT', () => {
+      expect(() => format('12345678901')).toThrow()
+    })
 
-  test('Correctly handles RUTs with non-numeric characters', () => {
-    expect(format('12.345.678-k')).toBe('12.345.678-K')
-  })
-
-  test('Correctly handles RUTs with white spaces', () => {
-    expect(format(' 123 456 789 ')).toBe('12.345.678-9')
+    test('Throws error for RUT with K not at the end', () => {
+      expect(() => format('K234567-8')).toThrow()
+      expect(() => format('1234K678-9')).toThrow()
+    })
   })
 })
