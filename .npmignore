@@ -28,3 +28,6 @@ Thumbs.db
 
 # Source files (only ship dist)
 src
+
+# Keep llms.txt in the package
+!llms.txt

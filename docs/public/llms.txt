@@ -1,0 +1,49 @@
+# Rut.ts
+
+> A modern TypeScript library for handling Chilean RUT (Rol Único Tributario) validation, formatting, cleaning, and generation with full type safety.
+
+Rut.ts provides a comprehensive set of utilities for working with Chilean RUTs - the unique tax identification numbers used throughout Chile. The library supports validation (including strict mode for suspicious patterns), formatting (both standard and incremental for real-time input), cleaning, decomposition, random generation, and verifier digit calculation. It's fully typed, tree-shakeable, supports both ESM and CommonJS, and works in Node.js and browsers. The RUT format follows the pattern `XX.XXX.XXX-Y` where the verifier digit is calculated using the Modulo 11 algorithm.
+
+Key technical details:
+- **Size**: ~3KB minified, ~1.1KB gzipped
+- **Zero dependencies**: Pure TypeScript implementation
+- **Safe mode**: All functions support `{ throwOnError: false }` to return `null` instead of throwing
+- **Dual package**: Native ESM with CommonJS fallback
+- **Type definitions**: Full TypeScript support with exported types
+
+## Getting Started
+
+- [Installation & Quick Start](https://rut.arrowsw.com/docs): Getting started guide with installation and basic examples
+- [Package on npm](https://www.npmjs.com/package/rut.ts): npm registry page with version history and stats
+- [GitHub Repository](https://github.com/arrowsoftwarehq/rut.ts): Source code, issues, and contribution guidelines
+
+## Core API Functions
+
+- [validate()](https://rut.arrowsw.com/docs/features/validate): Validate RUT format and verifier digit with optional strict mode to detect suspicious patterns
+- [format()](https://rut.arrowsw.com/docs/features/format): Format RUTs with dots and hyphens, supports incremental mode for real-time input
+- [clean()](https://rut.arrowsw.com/docs/features/clean): Remove formatting, special characters, and leading zeros from RUT strings
+- [decompose()](https://rut.arrowsw.com/docs/features/decompose): Split a RUT into its body (numeric part) and verifier digit components
+- [calculateVerifier()](https://rut.arrowsw.com/docs/features/calculate-verifier): Calculate the correct verifier digit for a given RUT body using Modulo 11
+- [generate()](https://rut.arrowsw.com/docs/features/generate): Generate valid random RUT numbers for testing and development
+- [getBody()](https://rut.arrowsw.com/docs/features/get-body): Extract only the body (numeric part) from a formatted or unformatted RUT
+- [getVerifier()](https://rut.arrowsw.com/docs/features/get-verifier): Extract only the verifier digit from a formatted or unformatted RUT
+- [isRutLike()](https://rut.arrowsw.com/docs/features/is-rut-like): Check if a string matches RUT format without full validation
+
+## Practical Examples
+
+- [Basic Usage](https://rut.arrowsw.com/docs/examples/basic-usage): Simple examples of the most common operations
+- [Form Integration](https://rut.arrowsw.com/docs/examples/form-integration): How to integrate RUT formatting in HTML forms with real-time validation
+- [React Example](https://rut.arrowsw.com/docs/examples/react-example): Complete React component with RUT input, validation, and error handling
+- [Error Handling](https://rut.arrowsw.com/docs/examples/error-handling): Best practices for handling errors and using safe mode
+
+## Reference Documentation
+
+- [API Reference](https://rut.arrowsw.com/docs/api-reference): Complete API documentation with all function signatures and TypeScript types
+- [TypeScript Types](https://rut.arrowsw.com/docs/api-reference#typescript-types): Exported types including DecomposedRut, FormatOptions, ValidateOptions, SafeOptions, and VerifierDigit
+
+## Optional
+
+- [Testing Guide](https://rut.arrowsw.com/docs/testing): Information about the test suite with 166 tests covering all edge cases
+- [Contributing Guide](https://rut.arrowsw.com/docs/contributing): How to contribute to the project, development setup, and coding standards
+- [GitHub Issues](https://github.com/arrowsoftwarehq/rut.ts/issues): Report bugs, request features, or ask questions
+- [Package Size Analysis](https://pkg-size.dev/rut.ts): Detailed breakdown of package size and bundle analysis
