@@ -1,0 +1,82 @@
+import { Cards, Callout, Tabs } from 'nextra/components'
+
+# 🇨🇱 Rut.ts
+
+Handle Chilean RUT values with ease using TypeScript.
+
+<Callout type="info" emoji="✨">
+  **Version 3.4.0 is out!** New safe mode, improved API, and better TypeScript types.
+</Callout>
+
+## What is a RUT?
+
+The **RUT** (Rol Único Tributario) is the unique Chilean identification number used for:
+
+- Tax purposes
+- Legal identification  
+- Government services
+- Banking and financial transactions
+
+**Format**: `XX.XXX.XXX-Y` where:
+- `X` = Body (7-8 digits)
+- `Y` = Verifier digit (0-9 or K)
+
+**Example**: `12.345.678-5`
+
+The verifier digit is calculated using the [Modulo 11 algorithm](https://en.wikipedia.org/wiki/Rol_%C3%9Anico_Tributario) to validate the RUT's authenticity.
+
+## Installation
+
+<Tabs items={['npm', 'pnpm', 'bun']}>
+  <Tabs.Tab>
+    ```bash
+    npm install rut.ts
+    ```
+  </Tabs.Tab>
+  <Tabs.Tab>
+    ```bash
+    pnpm install rut.ts
+    ```
+  </Tabs.Tab>
+  <Tabs.Tab>
+    ```bash
+    bun add rut.ts
+    ```
+  </Tabs.Tab>
+</Tabs>
+
+## Quick Example
+
+```typescript
+import { validate, format, clean } from 'rut.ts'
+
+// Validate a RUT
+validate('12.345.678-5') // true
+validate('12.345.678-0') // false (wrong verifier)
+
+// Format a RUT
+format('123456785') // '12.345.678-5'
+
+// Clean a RUT
+clean('12.345.678-5') // '123456785'
+
+// Safe mode (no errors thrown)
+clean('invalid', { throwOnError: false }) // null
+```
+
+## Key Features
+
+- ✅ **Full TypeScript support** with type exports
+- ✅ **Safe mode** - Return `null` instead of throwing errors
+- ✅ **Incremental formatting** - Format as user types
+- ✅ **Strict validation** - Detect suspicious patterns
+- ✅ **Zero dependencies** - Lightweight and fast
+- ✅ **Modulo 11 algorithm** - Industry standard validation
+
+## Next Steps
+
+<Cards>
+  <Cards.Card arrow title="Get Started" href="/docs/get-started" />
+  <Cards.Card arrow title="View Features" href="/docs/features" />
+  <Cards.Card arrow title="API Reference" href="/docs/api-reference" />
+</Cards>

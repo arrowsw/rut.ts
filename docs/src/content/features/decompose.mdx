@@ -1,0 +1,177 @@
+# decompose()
+
+Splits a RUT into its body and verifier digit components.
+
+## Basic Usage
+
+```typescript
+import { decompose } from 'rut.ts'
+
+const { body, verifier } = decompose('12.345.678-5')
+console.log(body)      // '12345678'
+console.log(verifier)  // '5'
+```
+
+## Type Signature
+
+```typescript
+function decompose(rut: string): DecomposedRut
+function decompose(rut: string, options: { throwOnError: false }): DecomposedRut | null
+function decompose(rut: string, options: { throwOnError: true }): DecomposedRut
+
+type DecomposedRut = {
+  body: string
+  verifier: string
+}
+```
+
+## Parameters
+
+- **`rut`** (`string`) - The RUT string to decompose
+- **`options`** (optional) - Configuration options
+  - **`throwOnError`** (`boolean`, default: `true`) - If false, returns `null` instead of throwing
+
+## Return Value
+
+Returns `DecomposedRut` object or `null`:
+- **`body`** - The RUT body (7-8 digits, cleaned)
+- **`verifier`** - The verifier digit ('0'-'9' or 'K')
+
+## Examples
+
+### Basic Decomposition
+
+```typescript
+import { decompose } from 'rut.ts'
+
+// Standard format
+const rut1 = decompose('12.345.678-5')
+console.log(rut1.body)      // '12345678'
+console.log(rut1.verifier)  // '5'
+
+// Without dots
+const rut2 = decompose('18972631-7')
+console.log(rut2.body)      // '18972631'
+console.log(rut2.verifier)  // '7'
+
+// No formatting
+const rut3 = decompose('9068826K')
+console.log(rut3.body)      // '9068826'
+console.log(rut3.verifier)  // 'K'
+```
+
+### Safe Mode
+
+```typescript
+import { decompose } from 'rut.ts'
+
+// Without safe mode (throws)
+try {
+  decompose('invalid')
+} catch (error) {
+  console.error(error)
+}
+
+// With safe mode (returns null)
+const result = decompose('invalid', { throwOnError: false })
+console.log(result)  // null
+
+// Useful for conditional processing
+const processRut = (input: string) => {
+  const parts = decompose(input, { throwOnError: false })
+  
+  if (parts) {
+    console.log(`Body: ${parts.body}`)
+    console.log(`Verifier: ${parts.verifier}`)
+    return parts
+  } else {
+    console.log('Invalid RUT format')
+    return null
+  }
+}
+```
+
+### Destructuring
+
+```typescript
+import { decompose } from 'rut.ts'
+
+// Direct destructuring
+const { body, verifier } = decompose('12.345.678-5')
+
+// Conditional destructuring
+const parts = decompose(userInput, { throwOnError: false })
+if (parts) {
+  const { body, verifier } = parts
+  // Process body and verifier
+}
+```
+
+## Use Cases
+
+### Store Body and Verifier Separately
+
+```typescript
+import { decompose } from 'rut.ts'
+
+const { body, verifier } = decompose('12.345.678-5')
+
+await db.users.create({
+  rutBody: body,        // '12345678'
+  rutVerifier: verifier // '5'
+})
+```
+
+### Compare RUT Bodies
+
+```typescript
+import { decompose } from 'rut.ts'
+
+const rut1 = decompose('12.345.678-5')
+const rut2 = decompose('12345678-5')
+
+if (rut1.body === rut2.body) {
+  console.log('Same person')
+}
+```
+
+### Extract for Processing
+
+```typescript
+import { decompose, calculateVerifier } from 'rut.ts'
+
+// Verify RUT by recalculating verifier
+const { body, verifier } = decompose('12.345.678-5')
+const calculated = calculateVerifier(body)
+
+if (calculated === verifier) {
+  console.log('Verifier is correct')
+}
+```
+
+### Partial Matching in Database Queries
+
+```typescript
+import { decompose } from 'rut.ts'
+
+const { body } = decompose('12.345.678-5')
+
+// Search by body (ignoring verifier)
+const users = await db.users.findMany({
+  where: { rutBody: body }
+})
+```
+
+## Properties
+
+The returned object contains:
+
+- **`body`**: Always 7-8 digits, cleaned (no dots, hyphens, or leading zeros)
+- **`verifier`**: Always a single character ('0'-'9' or 'K', uppercase)
+
+## Related Functions
+
+- [`getBody()`](/docs/features/get-body) - Extract only the body
+- [`getVerifier()`](/docs/features/get-verifier) - Extract only the verifier
+- [`clean()`](/docs/features/clean) - Get full cleaned RUT
+- [`calculateVerifier()`](/docs/features/calculate-verifier) - Calculate verifier for a body

@@ -1,0 +1,64 @@
+# getBody()
+
+Extracts just the body (without verifier digit) from a RUT string.
+
+## Basic Usage
+
+```typescript
+import { getBody } from 'rut.ts'
+
+getBody('12.345.678-5')  // '12345678'
+getBody('9068826K')      // '9068826'
+```
+
+## Type Signature
+
+```typescript
+function getBody(rut: string): string
+function getBody(rut: string, options: { throwOnError: false }): string | null
+function getBody(rut: string, options: { throwOnError: true }): string
+```
+
+## Parameters
+
+- **`rut`** (`string`) - The RUT string
+- **`options`** (optional)
+  - **`throwOnError`** (`boolean`, default: `true`) - If false, returns `null` instead of throwing
+
+## Return Value
+
+- **Default mode**: Returns body string (7-8 digits) or throws error
+- **Safe mode**: Returns body string or `null` if invalid
+
+## Examples
+
+### Basic Extraction
+
+```typescript
+import { getBody } from 'rut.ts'
+
+getBody('12.345.678-5')    // '12345678'
+getBody('18.972.631-7')    // '18972631'
+getBody('9.068.826-K')     // '9068826'
+```
+
+### Safe Mode
+
+```typescript
+import { getBody } from 'rut.ts'
+
+const body = getBody('invalid', { throwOnError: false })
+console.log(body)  // null
+```
+
+## Use Cases
+
+- ✅ Extract body for database queries
+- ✅ Compare RUT bodies (ignoring verifier)
+- ✅ Process body separately
+- ✅ Quick body extraction without full decomposition
+
+## Related Functions
+
+- [`getVerifier()`](/docs/features/get-verifier) - Extract verifier digit
+- [`decompose()`](/docs/features/decompose) - Get both body and verifier

@@ -1,0 +1,165 @@
+# Testing
+
+Rut.ts has comprehensive test coverage to ensure reliability.
+
+## Test Suite
+
+The library is tested using [Jest](https://jestjs.io/) with 166 test cases covering all functions and edge cases.
+
+```bash
+npm test
+```
+
+## Coverage Statistics
+
+- **8 Test suites** (one per main function)
+- **166 Test cases** (comprehensive coverage)
+- **100% Pass rate** ✅
+
+## What's Tested
+
+### ✅ Valid RUT Cases
+- Different formats (with/without dots, hyphens)
+- K verifier (uppercase and lowercase)
+- Leading zeros
+- 8 and 9 character RUTs
+- All verifier digits (0-9, K)
+
+### ✅ Invalid RUT Cases
+- Wrong verifier digits
+- Too short/long RUTs
+- Invalid characters
+- K not at the end
+- Empty strings
+- Non-string inputs
+
+### ✅ Edge Cases
+- Minimum valid RUT (10.000.002-4)
+- Maximum valid RUT (99.999.999-9)
+- Verifier digit 0
+- Multiple K letters
+- Special characters
+- Whitespace handling
+- Parentheses
+
+### ✅ Safe Mode
+- All functions tested with `throwOnError: false`
+- Null return validation
+- Combined options testing
+
+### ✅ Incremental Formatting
+- Progressive formatting at each length
+- Hyphen appearance at 8+ chars
+- Leading zeros in incremental mode
+- Very long inputs
+- Empty inputs
+
+### ✅ Strict Mode
+- Suspicious pattern detection
+- Normal RUTs pass strict mode
+- Edge cases with strict mode
+
+## Test Organization
+
+Tests are organized by function:
+
+```
+tests/
+├── validate.test.ts      (25 tests)
+├── format.test.ts        (30 tests)
+├── clean.test.ts         (22 tests)
+├── getVerifier.test.ts   (22 tests)
+├── calculateVerifier.test.ts (19 tests)
+├── decompose.test.ts     (18 tests)
+├── getBody.test.ts       (18 tests)
+└── generate.test.ts      (12 tests)
+```
+
+Each test file includes:
+- `describe` blocks for organization
+- Happy path tests
+- Error case tests
+- Edge case tests
+- Safe mode tests
+
+## Running Tests
+
+```bash
+# Run all tests
+npm test
+
+# Run specific test file
+npm test validate
+
+# Run in watch mode
+npm test -- --watch
+
+# Run with coverage
+npm test -- --coverage
+```
+
+## Example Test Cases
+
+### validate() Tests
+
+```typescript
+describe('validate', () => {
+  test('validates correct RUTs', () => {
+    expect(validate('12.345.678-5')).toBe(true)
+    expect(validate('18.972.631-7')).toBe(true)
+  })
+  
+  test('rejects invalid RUTs', () => {
+    expect(validate('12.345.678-0')).toBe(false)
+    expect(validate('invalid')).toBe(false)
+  })
+  
+  test('strict mode rejects suspicious patterns', () => {
+    expect(validate('11.111.111-1', { strict: true })).toBe(false)
+  })
+})
+```
+
+### format() Tests
+
+```typescript
+describe('format', () => {
+  test('formats with dots', () => {
+    expect(format('123456785')).toBe('12.345.678-5')
+  })
+  
+  test('formats without dots', () => {
+    expect(format('123456785', { dots: false })).toBe('12345678-5')
+  })
+  
+  test('incremental formatting', () => {
+    expect(format('1234', { incremental: true })).toBe('1.234')
+    expect(format('12345678', { incremental: true })).toBe('1.234.567-8')
+  })
+})
+```
+
+### Safe Mode Tests
+
+```typescript
+describe('safe mode', () => {
+  test('returns null instead of throwing', () => {
+    expect(clean('invalid', { throwOnError: false })).toBeNull()
+    expect(format('123', { throwOnError: false })).toBeNull()
+    expect(decompose('abc', { throwOnError: false })).toBeNull()
+  })
+})
+```
+
+## Contributing Tests
+
+When contributing, please:
+
+1. Add tests for new features
+2. Ensure all tests pass
+3. Maintain test organization with `describe` blocks
+4. Test both happy paths and error cases
+5. Include edge cases
+6. Test safe mode behavior
+
+See [Contributing](/docs/contributing) for more details.

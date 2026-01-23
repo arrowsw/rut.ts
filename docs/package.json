@@ -1,25 +1,25 @@
 {
-  "name": "rut-ts-docs",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "example-docs",
+  "license": "MIT",
+  "private": true,
   "scripts": {
+    "build": "next build --webpack",
     "dev": "next",
-    "build": "next build",
+    "postbuild": "pagefind --site .next/server/app --output-path public/_pagefind",
     "start": "next start"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "next": "^14.2.3",
-    "next-seo": "^6.5.0",
-    "nextra": "^2.13.4",
-    "nextra-theme-docs": "^2.13.4",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "@next/eslint-plugin-next": "^16.1.4",
+    "@remixicons/react": "^4.6.1",
+    "@tailwindcss/postcss": "^4.1.18",
+    "next": "^16.1.4",
+    "nextra": "^4.6.1",
+    "nextra-theme-docs": "^4.6.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "tailwindcss": "^4.1.18"
   },
   "devDependencies": {
-    "@types/node": "^20.12.10"
+    "pagefind": "^1.3.0"
   }
 }

@@ -1,0 +1,44 @@
+# Features
+
+Rut.ts provides a comprehensive set of functions for working with Chilean RUTs.
+
+## Core Functions
+
+### Validation
+- **`validate()`** - Check if a RUT is valid with optional strict mode
+
+### Formatting
+- **`format()`** - Convert RUTs to standardized format
+- **`clean()`** - Remove formatting characters
+
+### Analysis
+- **`decompose()`** - Split RUT into body and verifier
+- **`getBody()`** - Extract just the body
+- **`getVerifier()`** - Extract just the verifier digit
+- **`calculateVerifier()`** - Calculate verifier for a given body
+
+### Generation & Detection
+- **`generate()`** - Generate random valid RUTs
+- **`isRutLike()`** - Quick format check without full validation
+
+## Common Features
+
+All functions support:
+
+- ✅ **TypeScript types** - Full type safety
+- ✅ **Safe mode** - `{ throwOnError: false }` returns `null` instead of throwing
+- ✅ **Multiple formats** - Works with dots, hyphens, or plain numbers
+- ✅ **Leading zeros** - Automatically handles and removes them
+
+## Function Categories
+
+import { Cards } from 'nextra/components'
+
+<Cards>
+  <Cards.Card arrow title="validate()" href="/docs/features/validate" />
+  <Cards.Card arrow title="format()" href="/docs/features/format" />
+  <Cards.Card arrow title="clean()" href="/docs/features/clean" />
+  <Cards.Card arrow title="decompose()" href="/docs/features/decompose" />
+  <Cards.Card arrow title="calculateVerifier()" href="/docs/features/calculate-verifier" />
+  <Cards.Card arrow title="generate()" href="/docs/features/generate" />
+</Cards>
