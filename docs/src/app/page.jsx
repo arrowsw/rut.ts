@@ -20,7 +20,7 @@ export default function HomePage() {
             marginBottom: '32px',
             fontSize: '14px'
           }}>
-            <span style={{ color: '#10b981' }}>●</span> v3.2.0 — Now with Safe Mode
+            <span style={{ color: '#10b981' }}>●</span> v3.4.0 — Now with Safe Mode
           </div>
 
           <h1 style={{

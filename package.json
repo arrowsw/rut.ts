@@ -1,6 +1,6 @@
 {
   "name": "rut.ts",
-  "version": "3.2.0",
+  "version": "3.4.0",
   "type": "module",
   "description": "Handle chilean RUT values with ease.",
   "author": "arrowsw",
@@ -22,7 +22,7 @@
   },
   "scripts": {
     "build": "npm run build:esm && npm run build:cjs && npm run minify && npm run afterbuild",
-    "afterbuild": "rm -rf dist/esm/index.js && rm -rf dist/cjs/index.js",
+    "afterbuild": "rm -rf dist/esm/index.js && rm -rf dist/cjs/index.js && echo '{\"type\":\"commonjs\"}' > dist/cjs/package.json",
     "build:esm": "tsc",
     "build:cjs": "tsc --module commonjs --outDir dist/cjs",
     "lint": "eslint \"{**/*,*}.{js,ts,jsx,tsx}\"",
@@ -68,7 +68,9 @@
     "type": "git"
   },
   "files": [
-    "dist",
+    "dist/**/*.min.js",
+    "dist/**/*.d.ts",
+    "dist/cjs/package.json",
     "LICENSE",
     "README.md"
   ]

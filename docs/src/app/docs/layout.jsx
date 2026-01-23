@@ -20,7 +20,7 @@ export default async function DocsLayout({ children }) {
 
   return (
     <Layout
-      banner={<Banner storageKey="rut-ts-3.0-release">🎉 Rut.ts 3.2.0 is released! Check out Safe Mode and improved API.</Banner>}
+      banner={<Banner storageKey="rut-ts-3.0-release">🎉 Rut.ts 3.4.0 is released! Check out Safe Mode and improved API.</Banner>}
       navbar={navbar}
       footer={
         <Footer>

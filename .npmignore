@@ -1,4 +1,4 @@
-# npmignore
+# Development files
 node_modules
 .gitignore
 .idea
@@ -8,6 +8,23 @@ package-lock.json
 .npmrc
 .eslintrc
 jestconfig.json
+jest.config.cjs
 tsconfig.json
+
+# Test files
 tests
+
+# Documentation
 docs
+
+# Source maps
+**/*.map
+*.map
+
+# OS files
+.DS_Store
+**/.DS_Store
+Thumbs.db
+
+# Source files (only ship dist)
+src
