@@ -1,0 +1,156 @@
+# generate()
+
+Generates random valid RUT numbers for testing and development purposes.
+
+## Basic Usage
+
+```typescript
+import { generate } from 'rut.ts'
+
+const randomRut = generate()
+console.log(randomRut)  // '18.972.631-7'
+```
+
+## Type Signature
+
+```typescript
+function generate(): string
+```
+
+## Parameters
+
+None. The function takes no parameters.
+
+## Return Value
+
+Returns a `string` containing:
+- A randomly generated RUT
+- Already formatted with dots and hyphen (`XX.XXX.XXX-Y`)
+- Guaranteed to be valid (passes `validate()`)
+- Body in range: 10,000,000 - 99,999,999
+
+## Examples
+
+### Generate Single RUT
+
+```typescript
+import { generate } from 'rut.ts'
+
+const rut = generate()
+console.log(rut)  // e.g., '45.123.789-2'
+```
+
+### Generate Multiple RUTs
+
+```typescript
+import { generate } from 'rut.ts'
+
+const ruts = Array.from({ length: 10 }, () => generate())
+console.log(ruts)
+// ['18.972.631-7', '45.123.789-2', ...]
+```
+
+### Generate for Testing
+
+```typescript
+import { generate, validate } from 'rut.ts'
+
+// Generate test data
+const testRuts = Array.from({ length: 100 }, () => generate())
+
+// All generated RUTs are valid
+testRuts.forEach(rut => {
+  console.assert(validate(rut) === true)
+})
+```
+
+### Seed Test Database
+
+```typescript
+import { generate, decompose } from 'rut.ts'
+
+// Create test users with valid RUTs
+const testUsers = Array.from({ length: 50 }, (_, i) => {
+  const rut = generate()
+  const { body, verifier } = decompose(rut)
+  
+  return {
+    id: i + 1,
+    name: `Test User ${i + 1}`,
+    rut: rut,
+    rutBody: body,
+    rutVerifier: verifier
+  }
+})
+
+await db.users.insertMany(testUsers)
+```
+
+## Properties
+
+All generated RUTs have these properties:
+
+- ✅ **Valid**: Pass `validate()` without errors
+- ✅ **Formatted**: Include dots and hyphen (`XX.XXX.XXX-Y`)
+- ✅ **Realistic**: Body in range 10,000,000 - 99,999,999
+- ✅ **Random**: Different on each call
+- ✅ **Non-suspicious**: Pass `validate(rut, { strict: true })`
+- ✅ **8-digit body**: Always generates 8-digit bodies
+
+## Format
+
+Generated RUTs follow this pattern:
+
+```
+XX.XXX.XXX-Y
+││  │   │  └─ Verifier digit (0-9 or K)
+││  │   └──── Last 3 digits of body
+││  └──────── Middle 3 digits of body  
+│└─────────── First 2 digits of body
+└──────────── Always 8 digits total in body
+```
+
+## Use Cases
+
+- ✅ Generate test data for unit tests
+- ✅ Populate development databases
+- ✅ Create sample data for demos
+- ✅ Seed databases with realistic RUTs
+- ✅ Stress testing validation logic
+
+## Examples in Testing
+
+```typescript
+import { generate, validate } from 'rut.ts'
+
+describe('RUT validation', () => {
+  test('validates 1000 generated RUTs', () => {
+    const ruts = Array.from({ length: 1000 }, () => generate())
+    
+    ruts.forEach(rut => {
+      expect(validate(rut)).toBe(true)
+    })
+  })
+  
+  test('generated RUTs pass strict validation', () => {
+    const ruts = Array.from({ length: 100 }, () => generate())
+    
+    ruts.forEach(rut => {
+      expect(validate(rut, { strict: true })).toBe(true)
+    })
+  })
+})
+```
+
+## Notes
+
+- Each call generates a **different** RUT (random)
+- Generated RUTs use **realistic** number ranges
+- Verifier is **automatically calculated** using Modulo 11
+- Output is **always formatted** with dots and hyphen
+
+## Related Functions
+
+- [`validate()`](/docs/features/validate) - Validate generated RUTs
+- [`calculateVerifier()`](/docs/features/calculate-verifier) - Calculate verifier manually
+- [`format()`](/docs/features/format) - Format RUTs

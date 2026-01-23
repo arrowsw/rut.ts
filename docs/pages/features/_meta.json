@@ -1,8 +1,0 @@
-{
-  "validate": "Validate",
-  "clean": "Clean",
-  "format": "Format",
-  "generate": "Generate",
-  "decompose": "Decompose",
-  "calculateVerifier": "Calculate Verifier"
-}

@@ -1,0 +1,153 @@
+# Basic Usage
+
+Common patterns and examples for working with rut.ts.
+
+## Simple Validation
+
+```typescript
+import { validate } from 'rut.ts'
+
+// Check if valid
+if (validate('12.345.678-5')) {
+  console.log('Valid RUT')
+} else {
+  console.log('Invalid RUT')
+}
+```
+
+## Format and Display
+
+```typescript
+import { format } from 'rut.ts'
+
+// User enters: "123456785"
+const formatted = format('123456785')
+console.log(formatted)  // '12.345.678-5'
+
+// Display in UI
+document.getElementById('rut').textContent = formatted
+```
+
+## Clean Before Storage
+
+```typescript
+import { clean, validate } from 'rut.ts'
+
+function saveRut(userInput: string) {
+  // Validate first
+  if (!validate(userInput)) {
+    throw new Error('Invalid RUT')
+  }
+  
+  // Clean for storage
+  const cleaned = clean(userInput)
+  
+  // Save to database
+  await db.users.update({
+    where: { id: userId },
+    data: { rut: cleaned }
+  })
+}
+```
+
+## Generate Test Data
+
+```typescript
+import { generate } from 'rut.ts'
+
+// Generate 10 test users
+const testUsers = Array.from({ length: 10 }, (_, i) => ({
+  id: i + 1,
+  name: `Test User ${i + 1}`,
+  rut: generate()
+}))
+
+console.log(testUsers)
+// [
+//   { id: 1, name: 'Test User 1', rut: '18.972.631-7' },
+//   { id: 2, name: 'Test User 2', rut: '45.123.789-2' },
+//   ...
+// ]
+```
+
+## Decompose for Database
+
+```typescript
+import { decompose } from 'rut.ts'
+
+function storeRut(rut: string) {
+  const { body, verifier } = decompose(rut)
+  
+  return db.users.create({
+    data: {
+      rutBody: body,        // '12345678'
+      rutVerifier: verifier // '5'
+    }
+  })
+}
+```
+
+## Verify Correctness
+
+```typescript
+import { decompose, calculateVerifier } from 'rut.ts'
+
+function isRutCorrect(rut: string): boolean {
+  const { body, verifier } = decompose(rut)
+  const calculated = calculateVerifier(body)
+  return calculated === verifier
+}
+
+console.log(isRutCorrect('12.345.678-5'))  // true
+console.log(isRutCorrect('12.345.678-0'))  // false
+```
+
+## Type Guards
+
+```typescript
+import { validate, isRutLike } from 'rut.ts'
+
+function isValidRut(value: unknown): value is string {
+  return typeof value === 'string' && validate(value)
+}
+
+// Usage with type narrowing
+function processInput(input: unknown) {
+  if (isValidRut(input)) {
+    // TypeScript knows input is string here
+    console.log(input.toUpperCase())
+  }
+}
+```
+
+## Safe Error Handling
+
+```typescript
+import { clean, format, decompose } from 'rut.ts'
+
+function processUserRut(input: string) {
+  // Use safe mode for all operations
+  const cleaned = clean(input, { throwOnError: false })
+  if (!cleaned) {
+    return { error: 'Invalid RUT format' }
+  }
+  
+  const formatted = format(cleaned, { throwOnError: false })
+  if (!formatted) {
+    return { error: 'Cannot format RUT' }
+  }
+  
+  const parts = decompose(formatted, { throwOnError: false })
+  if (!parts) {
+    return { error: 'Cannot decompose RUT' }
+  }
+  
+  return {
+    success: true,
+    cleaned,
+    formatted,
+    body: parts.body,
+    verifier: parts.verifier
+  }
+}
+```

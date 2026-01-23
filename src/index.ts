@@ -140,7 +140,7 @@ function calculateVerifier(rutBody: string, options: { throwOnError: true }): Ve
 function calculateVerifier(rutBody: string, options?: SafeOptions): VerifierDigit | null
 function calculateVerifier(rutBody: string, options?: SafeOptions): VerifierDigit | null {
   const throwOpt = withThrowOption(options?.throwOnError)
-  
+
   // Use cleanRaw since we're validating a body (7-8 digits), not a complete RUT (8-9 chars)
   const cleanedRut = cleanRaw(rutBody)
 

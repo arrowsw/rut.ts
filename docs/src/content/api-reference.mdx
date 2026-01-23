@@ -1,0 +1,150 @@
+# API Reference
+
+Complete API documentation for all rut.ts functions.
+
+## Functions
+
+### Validation
+
+- [`validate(rut, options?)`](/docs/features/validate) - Validates a RUT string
+
+### Formatting & Cleaning
+
+- [`format(rut, options?)`](/docs/features/format) - Formats a RUT string
+- [`clean(rut, options?)`](/docs/features/clean) - Cleans a RUT string
+
+### Decomposition
+
+- [`decompose(rut, options?)`](/docs/features/decompose) - Splits RUT into body and verifier
+- [`getBody(rut, options?)`](/docs/features/get-body) - Extracts body only
+- [`getVerifier(rut, options?)`](/docs/features/get-verifier) - Extracts verifier only
+
+### Generation & Calculation
+
+- [`generate()`](/docs/features/generate) - Generates random valid RUT
+- [`calculateVerifier(body, options?)`](/docs/features/calculate-verifier) - Calculates verifier digit
+
+### Utilities
+
+- [`isRutLike(rut)`](/docs/features/is-rut-like) - Quick format check
+
+## TypeScript Types
+
+```typescript
+import type { 
+  DecomposedRut,
+  FormatOptions,
+  SafeOptions,
+  ValidateOptions,
+  VerifierDigit
+} from 'rut.ts'
+```
+
+### DecomposedRut
+
+```typescript
+type DecomposedRut = {
+  body: string      // RUT body (7-8 digits)
+  verifier: string  // Verifier digit ('0'-'9' or 'K')
+}
+```
+
+### FormatOptions
+
+```typescript
+type FormatOptions = {
+  incremental?: boolean   // Progressive formatting mode
+  dots?: boolean          // Include dot separators (default: true)
+  throwOnError?: boolean  // Return null on error (default: true)
+}
+```
+
+### SafeOptions
+
+```typescript
+type SafeOptions = {
+  throwOnError?: boolean  // Return null on error (default: true)
+}
+```
+
+### ValidateOptions
+
+```typescript
+type ValidateOptions = {
+  strict?: boolean  // Reject suspicious patterns (default: false)
+}
+```
+
+### VerifierDigit
+
+```typescript
+type VerifierDigit = 
+  | '0' | '1' | '2' | '3' | '4' 
+  | '5' | '6' | '7' | '8' | '9' 
+  | 'K'
+```
+
+## Quick Reference
+
+| Function | Input | Output | Safe Mode | Purpose |
+|----------|-------|--------|-----------|---------|
+| `validate()` | RUT string | boolean | N/A | Check validity |
+| `format()` | RUT string | Formatted string | ✅ | Add formatting |
+| `clean()` | RUT string | Clean string | ✅ | Remove formatting |
+| `decompose()` | RUT string | `{ body, verifier }` | ✅ | Split RUT |
+| `getBody()` | RUT string | Body string | ✅ | Extract body |
+| `getVerifier()` | RUT string | Verifier char | ✅ | Extract verifier |
+| `calculateVerifier()` | Body string | Verifier char | ✅ | Calculate verifier |
+| `generate()` | None | Valid RUT | N/A | Generate random |
+| `isRutLike()` | String | boolean | N/A | Format check |
+
+## Common Patterns
+
+### Validation Pipeline
+
+```typescript
+import { isRutLike, validate, clean } from 'rut.ts'
+
+function validateRutPipeline(input: unknown) {
+  // Step 1: Type check
+  if (typeof input !== 'string') return false
+  
+  // Step 2: Format check (fast)
+  if (!isRutLike(input)) return false
+  
+  // Step 3: Full validation (slower)
+  return validate(input)
+}
+```
+
+### Safe Processing
+
+```typescript
+import { clean, decompose, calculateVerifier } from 'rut.ts'
+
+function safeProcessRut(input: string) {
+  const cleaned = clean(input, { throwOnError: false })
+  if (!cleaned) return null
+  
+  const parts = decompose(cleaned, { throwOnError: false })
+  if (!parts) return null
+  
+  return parts
+}
+```
+
+### Format + Validate
+
+```typescript
+import { format, validate } from 'rut.ts'
+
+function formatAndValidate(input: string) {
+  const formatted = format(input, { throwOnError: false })
+  if (!formatted) return { valid: false, formatted: null }
+  
+  return {
+    valid: validate(formatted),
+    formatted
+  }
+}
+```

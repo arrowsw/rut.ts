@@ -1,0 +1,84 @@
+# getVerifier()
+
+Extracts just the verifier digit from a RUT string.
+
+## Basic Usage
+
+```typescript
+import { getVerifier } from 'rut.ts'
+
+getVerifier('12.345.678-5')  // '5'
+getVerifier('9068826K')      // 'K'
+```
+
+## Type Signature
+
+```typescript
+function getVerifier(rut: string): VerifierDigit
+function getVerifier(rut: string, options: { throwOnError: false }): VerifierDigit | null
+function getVerifier(rut: string, options: { throwOnError: true }): VerifierDigit
+
+type VerifierDigit = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | 'K'
+```
+
+## Parameters
+
+- **`rut`** (`string`) - The RUT string
+- **`options`** (optional)
+  - **`throwOnError`** (`boolean`, default: `true`) - If false, returns `null` instead of throwing
+
+## Return Value
+
+Returns `VerifierDigit` or `null`:
+- A single character: `'0'` to `'9'` or `'K'` (always uppercase)
+- `null` if invalid (only in safe mode)
+
+## Examples
+
+### Basic Extraction
+
+```typescript
+import { getVerifier } from 'rut.ts'
+
+getVerifier('12.345.678-5')    // '5'
+getVerifier('18.972.631-7')    // '7'
+getVerifier('9.068.826-K')     // 'K'
+getVerifier('9068826k')        // 'K' (converted to uppercase)
+```
+
+### Safe Mode
+
+```typescript
+import { getVerifier } from 'rut.ts'
+
+const verifier = getVerifier('invalid', { throwOnError: false })
+console.log(verifier)  // null
+```
+
+### Verify Correctness
+
+```typescript
+import { getVerifier, calculateVerifier, getBody } from 'rut.ts'
+
+const rut = '12.345.678-5'
+const body = getBody(rut)
+const verifier = getVerifier(rut)
+const calculated = calculateVerifier(body)
+
+if (verifier === calculated) {
+  console.log('Verifier is correct!')
+}
+```
+
+## Use Cases
+
+- ✅ Extract verifier for verification
+- ✅ Display verifier separately
+- ✅ Compare verifiers
+- ✅ Quick verifier extraction without full decomposition
+
+## Related Functions
+
+- [`getBody()`](/docs/features/get-body) - Extract body
+- [`decompose()`](/docs/features/decompose) - Get both body and verifier
+- [`calculateVerifier()`](/docs/features/calculate-verifier) - Calculate verifier for a body

@@ -25,7 +25,7 @@ describe('calculateVerifier', () => {
     })
 
     test('handles leading zeros (that result in 8-digit body after cleaning)', () => {
-      expect(calculateVerifier('018972631')).toBe('7')  // Becomes 18972631 (8 digits)
+      expect(calculateVerifier('018972631')).toBe('7') // Becomes 18972631 (8 digits)
       expect(calculateVerifier('0018264958')).toBe('9') // Becomes 18264958 (8 digits)
     })
   })
