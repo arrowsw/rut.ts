@@ -1,12 +1,10 @@
 /* eslint-env node */
-import { Footer, Layout, Navbar } from 'nextra-theme-docs'
-import { Banner, Head } from 'nextra/components'
-import { getPageMap } from 'nextra/page-map'
+import { Head } from 'nextra/components'
 import 'nextra-theme-docs/style.css'
 import './globals.css'
 
 export const metadata = {
-  metadataBase: new URL('https://rutts-arrowsw.vercel.app'),
+  metadataBase: new URL('https://rut.arrowsw.com'),
   title: {
     template: '%s - Rut.ts',
     default: 'Rut.ts - Handle chilean RUT values with ease'
@@ -26,7 +24,7 @@ export const metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://rutts-arrowsw.vercel.app',
+    url: 'https://rut.arrowsw.com',
     siteName: 'Rut.ts',
     title: 'Rut.ts - Handle chilean RUT values with ease',
     description: 'A powerful TypeScript library for validating, formatting, and generating Chilean RUTs',
