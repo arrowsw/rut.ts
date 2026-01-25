@@ -112,7 +112,7 @@ const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 
 ## Usage
 
-Please refer to [the documentation](https://rutts-arrowsw.vercel.app/) for more detailed examples.
+Please refer to [the documentation](https://rut.arrowsw.com/) for more detailed examples.
 
 
 ## TypeScript Types
