@@ -3,6 +3,8 @@
   <h1>Rut.ts: Handle chilean RUT values with ease using TypeScript.</h1>
 </div>
 
+![Open Bundle](https://deno.bundlejs.com/badge?q=rut.ts@3.4.0) 
+
 ## What is a RUT?
 
 The **RUT** (Rol Único Tributario) is the unique Chilean identification number used for:
