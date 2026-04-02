@@ -44,7 +44,7 @@ How to integrate rut.ts with form libraries and validation.
 
 ## React Hook Form
 
-```typescript
+```typescript copy
 import { useForm } from 'react-hook-form'
 import { validate } from 'rut.ts'
 
@@ -80,7 +80,7 @@ function MyForm() {
 
 ## Zod Schema Validation
 
-```typescript
+```typescript copy
 import { z } from 'zod'
 import { validate } from 'rut.ts'
 
@@ -107,7 +107,7 @@ if (result.success) {
 
 ## Formik
 
-```typescript
+```typescript copy
 import { Formik, Form, Field, ErrorMessage } from 'formik'
 import { validate, format } from 'rut.ts'
 
@@ -149,7 +149,7 @@ function MyForm() {
 
 ## Next.js Server Actions
 
-```typescript
+```typescript copy
 'use server'
 
 import { validate, clean } from 'rut.ts'
@@ -184,7 +184,7 @@ export async function createUser(formData: FormData) {
 
 ## Yup Schema
 
-```typescript
+```typescript copy
 import * as yup from 'yup'
 import { validate } from 'rut.ts'
 
@@ -208,7 +208,7 @@ try {
 
 ## Custom Hook (React)
 
-```typescript
+```typescript copy
 import { useState, useCallback } from 'react'
 import { format, validate } from 'rut.ts'
 

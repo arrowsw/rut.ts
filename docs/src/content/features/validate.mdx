@@ -4,7 +4,7 @@ Validates a given RUT string, checking both format and verifier digit.
 
 ## Basic Usage
 
-```typescript
+```typescript copy
 import { validate } from 'rut.ts'
 
 validate('12.345.678-5') // true
@@ -14,7 +14,7 @@ validate('invalid')      // false
 
 ## Type Signature
 
-```typescript
+```typescript copy
 function validate(rut: unknown, options?: ValidateOptions): boolean
 
 type ValidateOptions = {
@@ -38,7 +38,7 @@ Returns `boolean`:
 
 ### Basic Validation
 
-```typescript
+```typescript copy
 import { validate } from 'rut.ts'
 
 // Valid RUTs
@@ -59,7 +59,7 @@ validate(123)              // false
 
 Strict mode rejects suspicious patterns like repeated digits:
 
-```typescript
+```typescript copy
 import { validate } from 'rut.ts'
 
 // Suspicious RUTs (technically valid, but unlikely to be real)
@@ -76,7 +76,7 @@ validate('22.222.222-2')  // true
 
 The function accepts `unknown` input for better type safety:
 
-```typescript
+```typescript copy
 import { validate } from 'rut.ts'
 
 function processUserInput(input: unknown) {

@@ -4,7 +4,7 @@ Common patterns and examples for working with rut.ts.
 
 ## Simple Validation
 
-```typescript
+```typescript copy
 import { validate } from 'rut.ts'
 
 // Check if valid
@@ -17,7 +17,7 @@ if (validate('12.345.678-5')) {
 
 ## Format and Display
 
-```typescript
+```typescript copy
 import { format } from 'rut.ts'
 
 // User enters: "123456785"
@@ -30,7 +30,7 @@ document.getElementById('rut').textContent = formatted
 
 ## Clean Before Storage
 
-```typescript
+```typescript copy
 import { clean, validate } from 'rut.ts'
 
 function saveRut(userInput: string) {
@@ -52,7 +52,7 @@ function saveRut(userInput: string) {
 
 ## Generate Test Data
 
-```typescript
+```typescript copy
 import { generate } from 'rut.ts'
 
 // Generate 10 test users
@@ -72,7 +72,7 @@ console.log(testUsers)
 
 ## Decompose for Database
 
-```typescript
+```typescript copy
 import { decompose } from 'rut.ts'
 
 function storeRut(rut: string) {
@@ -89,7 +89,7 @@ function storeRut(rut: string) {
 
 ## Verify Correctness
 
-```typescript
+```typescript copy
 import { decompose, calculateVerifier } from 'rut.ts'
 
 function isRutCorrect(rut: string): boolean {
@@ -104,7 +104,7 @@ console.log(isRutCorrect('12.345.678-0'))  // false
 
 ## Type Guards
 
-```typescript
+```typescript copy
 import { validate, isRutLike } from 'rut.ts'
 
 function isValidRut(value: unknown): value is string {
@@ -122,7 +122,7 @@ function processInput(input: unknown) {
 
 ## Safe Error Handling
 
-```typescript
+```typescript copy
 import { clean, format, decompose } from 'rut.ts'
 
 function processUserRut(input: string) {

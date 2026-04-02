@@ -4,7 +4,7 @@ Quick format check to determine if a string looks like a RUT, without validating
 
 ## Basic Usage
 
-```typescript
+```typescript copy
 import { isRutLike } from 'rut.ts'
 
 isRutLike('12.345.678-9')  // true
@@ -13,7 +13,7 @@ isRutLike('not-a-rut')     // false
 
 ## Type Signature
 
-```typescript
+```typescript copy
 function isRutLike(rut: string): boolean
 ```
 
@@ -31,7 +31,7 @@ Returns `boolean`:
 
 ### Valid Formats
 
-```typescript
+```typescript copy
 import { isRutLike } from 'rut.ts'
 
 // All RUT-like formats
@@ -44,7 +44,7 @@ isRutLike('09.068.826-K')   // true (leading zeros)
 
 ### Invalid Formats
 
-```typescript
+```typescript copy
 import { isRutLike } from 'rut.ts'
 
 isRutLike('abcdefgh')      // false (letters)
@@ -63,7 +63,7 @@ import { Callout } from 'nextra/components'
   Use **`validate()`** for full validation including verifier digit check.
 </Callout>
 
-```typescript
+```typescript copy
 import { isRutLike, validate } from 'rut.ts'
 
 const rut = '12.345.678-0' // Wrong verifier (should be 5)
@@ -76,7 +76,7 @@ validate(rut)    // false ❌ (verifier is wrong)
 
 ### Early Form Validation
 
-```typescript
+```typescript copy
 import { isRutLike } from 'rut.ts'
 
 function handleInput(value: string) {
@@ -94,7 +94,7 @@ function handleInput(value: string) {
 
 ### Filter Lists
 
-```typescript
+```typescript copy
 import { isRutLike } from 'rut.ts'
 
 const inputs = [
@@ -113,7 +113,7 @@ console.log(potentialRuts)
 
 ### Pre-validation Check
 
-```typescript
+```typescript copy
 import { isRutLike, validate } from 'rut.ts'
 
 function validateRut(input: unknown): boolean {

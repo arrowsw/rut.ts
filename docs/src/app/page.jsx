@@ -1,5 +1,7 @@
 import Link from 'next/link'
 import { CodeBlock } from './components/CodeBlocks'
+import { CopyButton } from './components/CopyButton'
+import { exampleCode, installCode } from './constants/hero-page'
 
 export default function HomePage() {
   return (
@@ -86,11 +88,11 @@ export default function HomePage() {
             margin: '0 auto',
             background: 'var(--code-bg)',
             borderRadius: '16px',
-            border: '1px solid rgba(255,255,255,0.2)',
-            padding: '32px',
             textAlign: 'left',
-          }}>
+            position: 'relative',
+          }}>     
             <CodeBlock>
+              <CopyButton code={exampleCode}/>
               <span style={{ color: 'var(--code-keyword)' }}>import</span> {'{ '}
               <span style={{ color: 'var(--code-identifier)' }}>validate</span>,{' '}
               <span style={{ color: 'var(--code-identifier)' }}>format</span>
@@ -157,12 +159,12 @@ export default function HomePage() {
           </h2>
           <div style={{
             background: 'var(--code-bg)',
-            border: '1px solid rgba(255,255,255,0.2)',
             borderRadius: '16px',
-            padding: '32px',
-            marginBottom: '32px'
+            marginBottom: '32px',
+            position: 'relative',
           }}>
-            <CodeBlock><span style={{ color: 'var(--code-function)', fontSize: '24px' }}>npm</span><span style={{ color: 'var(--code-string)', fontSize: '24px' }}> install rut.ts</span></CodeBlock>
+            
+            <CodeBlock><CopyButton code={installCode}/><span style={{ color: 'var(--code-function)', fontSize: '24px' }}>npm</span><span style={{ color: 'var(--code-string)', fontSize: '24px' }}> install rut.ts</span></CodeBlock>
           </div>
           <Link
             href="/docs"

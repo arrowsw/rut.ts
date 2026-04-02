@@ -14,6 +14,8 @@ export function CodeBlock({ children, ...props }) {
         lineHeight: '1.5',
         fontFamily: 'Consolas, Monaco, "Courier New", monospace',
         fontSize: props.style?.fontSize || '16px',
+        padding: '32px',
+        border: '1px solid rgba(255,255,255,0.2)',
       }}
     >
       <code {...props}>{children}</code>

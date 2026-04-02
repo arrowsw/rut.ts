@@ -102,7 +102,7 @@ npm test -- --coverage
 
 ### validate() Tests
 
-```typescript
+```typescript copy
 describe('validate', () => {
   test('validates correct RUTs', () => {
     expect(validate('12.345.678-5')).toBe(true)
@@ -122,7 +122,7 @@ describe('validate', () => {
 
 ### format() Tests
 
-```typescript
+```typescript copy
 describe('format', () => {
   test('formats with dots', () => {
     expect(format('123456785')).toBe('12.345.678-5')
@@ -141,7 +141,7 @@ describe('format', () => {
 
 ### Safe Mode Tests
 
-```typescript
+```typescript copy
 describe('safe mode', () => {
   test('returns null instead of throwing', () => {
     expect(clean('invalid', { throwOnError: false })).toBeNull()

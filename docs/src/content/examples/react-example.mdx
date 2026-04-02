@@ -4,7 +4,7 @@ Complete React examples with rut.ts.
 
 ## Simple RUT Input Component
 
-```typescript
+```typescript copy
 import { useState } from 'react'
 import { format, validate } from 'rut.ts'
 
@@ -37,7 +37,7 @@ export function RutInput() {
 
 ## Controlled Component with Validation
 
-```typescript
+```typescript copy
 import { useState, useEffect } from 'react'
 import { format, validate, clean } from 'rut.ts'
 
@@ -105,7 +105,7 @@ export function RutInput({
 
 ## Form with Multiple Fields
 
-```typescript
+```typescript copy
 import { useState } from 'react'
 import { validate, clean, format } from 'rut.ts'
 
@@ -189,7 +189,7 @@ export function UserRegistration() {
 
 ## Display Formatted RUT
 
-```typescript
+```typescript copy
 import { format } from 'rut.ts'
 
 interface RutDisplayProps {
@@ -217,7 +217,7 @@ export function RutDisplay({ rut, withDots = true }: RutDisplayProps) {
 
 ## Searchable RUT Table
 
-```typescript
+```typescript copy
 import { useState, useMemo } from 'react'
 import { clean, format, isRutLike } from 'rut.ts'
 

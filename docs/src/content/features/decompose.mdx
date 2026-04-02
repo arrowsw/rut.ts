@@ -4,7 +4,7 @@ Splits a RUT into its body and verifier digit components.
 
 ## Basic Usage
 
-```typescript
+```typescript copy
 import { decompose } from 'rut.ts'
 
 const { body, verifier } = decompose('12.345.678-5')
@@ -14,7 +14,7 @@ console.log(verifier)  // '5'
 
 ## Type Signature
 
-```typescript
+```typescript copy
 function decompose(rut: string): DecomposedRut
 function decompose(rut: string, options: { throwOnError: false }): DecomposedRut | null
 function decompose(rut: string, options: { throwOnError: true }): DecomposedRut
@@ -41,7 +41,7 @@ Returns `DecomposedRut` object or `null`:
 
 ### Basic Decomposition
 
-```typescript
+```typescript copy
 import { decompose } from 'rut.ts'
 
 // Standard format
@@ -62,7 +62,7 @@ console.log(rut3.verifier)  // 'K'
 
 ### Safe Mode
 
-```typescript
+```typescript copy
 import { decompose } from 'rut.ts'
 
 // Without safe mode (throws)
@@ -93,7 +93,7 @@ const processRut = (input: string) => {
 
 ### Destructuring
 
-```typescript
+```typescript copy
 import { decompose } from 'rut.ts'
 
 // Direct destructuring
@@ -111,7 +111,7 @@ if (parts) {
 
 ### Store Body and Verifier Separately
 
-```typescript
+```typescript copy
 import { decompose } from 'rut.ts'
 
 const { body, verifier } = decompose('12.345.678-5')
@@ -124,7 +124,7 @@ await db.users.create({
 
 ### Compare RUT Bodies
 
-```typescript
+```typescript copy
 import { decompose } from 'rut.ts'
 
 const rut1 = decompose('12.345.678-5')
@@ -137,7 +137,7 @@ if (rut1.body === rut2.body) {
 
 ### Extract for Processing
 
-```typescript
+```typescript copy
 import { decompose, calculateVerifier } from 'rut.ts'
 
 // Verify RUT by recalculating verifier
@@ -151,7 +151,7 @@ if (calculated === verifier) {
 
 ### Partial Matching in Database Queries
 
-```typescript
+```typescript copy
 import { decompose } from 'rut.ts'
 
 const { body } = decompose('12.345.678-5')
