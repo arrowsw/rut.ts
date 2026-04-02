@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { CodeBlock } from './components/CodeBlocks'
 
 export default function HomePage() {
   return (
@@ -83,30 +84,40 @@ export default function HomePage() {
           <div style={{
             maxWidth: '700px',
             margin: '0 auto',
-            background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,255,255,0.1)',
+            background: 'var(--code-bg)',
             borderRadius: '16px',
+            border: '1px solid rgba(255,255,255,0.2)',
             padding: '32px',
-            textAlign: 'left'
+            textAlign: 'left',
           }}>
-            <pre style={{
-              fontSize: '16px',
-              color: '#e5e5e5',
-              overflow: 'auto',
-              margin: 0
-            }}>
-              {`import { validate, format } from 'rut.ts'
-
-// Validate any RUT format
-validate('12.345.678-5') // → true
-
-// Format with dots and hyphen
-format('123456785') // → '12.345.678-5'
-
-// Incremental formatting
-format('1234', { incremental: true })
-// → '1.234'`}
-            </pre>
+            <CodeBlock>
+              <span style={{ color: 'var(--code-keyword)' }}>import</span> {'{ '}
+              <span style={{ color: 'var(--code-identifier)' }}>validate</span>,{' '}
+              <span style={{ color: 'var(--code-identifier)' }}>format</span>
+              {' }'} <span style={{ color: 'var(--code-keyword)' }}>from</span>{' '}
+              <span style={{ color: 'var(--code-string)' }}>'rut.ts'</span>
+              {'\n\n'}
+              <span style={{ color: 'var(--code-gray)' }}>// Validate any RUT format</span>
+              {'\n'}
+              <span style={{ color: 'var(--code-function)' }}>validate</span>(
+              <span style={{ color: 'var(--code-string)' }}>'12.345.678-5'</span>){' '}
+              <span style={{ color: 'var(--code-comment)' }}>// → true</span>
+              {'\n\n'}
+              <span style={{ color: 'var(--code-gray)' }}>// Format with dots and hyphen</span>
+              {'\n'}
+              <span style={{ color: 'var(--code-function)' }}>format</span>(
+              <span style={{ color: 'var(--code-string)' }}>'123456785'</span>){' '}
+              <span style={{ color: 'var(--code-gray)' }}>// → '12.345.678-5'</span>
+              {'\n\n'}
+              <span style={{ color: 'var(--code-gray)' }}>// Incremental formatting</span>
+              {'\n'}
+              <span style={{ color: 'var(--code-function)' }}>format</span>(
+              <span style={{ color: 'var(--code-string)' }}>'1234'</span>, {'{ '}
+              <span style={{ color: 'var(--code-identifier)' }}>incremental</span>:{' '}
+              <span style={{ color: 'var(--code-boolean)' }}>true</span>
+              {' }'}){'\n'}
+              <span style={{ color: 'var(--code-gray)' }}>// → '1.234'</span>
+            </CodeBlock>
           </div>
         </div>
 
@@ -145,13 +156,13 @@ format('1234', { incremental: true })
             Ready to get started?
           </h2>
           <div style={{
-            background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,255,255,0.1)',
+            background: 'var(--code-bg)',
+            border: '1px solid rgba(255,255,255,0.2)',
             borderRadius: '16px',
             padding: '32px',
             marginBottom: '32px'
           }}>
-            <code style={{ fontSize: '24px', fontFamily: 'monospace' }}>npm install rut.ts</code>
+            <CodeBlock><span style={{ color: 'var(--code-function)', fontSize: '24px' }}>npm</span><span style={{ color: 'var(--code-string)', fontSize: '24px' }}> install rut.ts</span></CodeBlock>
           </div>
           <Link
             href="/docs"
