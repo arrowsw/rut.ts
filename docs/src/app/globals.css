@@ -38,3 +38,13 @@ body:not(:has([class*="nx-"])) {
     )
     rgb(var(--background-start-rgb));
 }
+
+/* CopyButton visibility: show only on hover over CodeBlock */
+pre:hover .copy-button {
+  opacity: 1 !important;
+}
+
+.copy-button {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}

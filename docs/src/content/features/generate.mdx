@@ -4,7 +4,7 @@ Generates random valid RUT numbers for testing and development purposes.
 
 ## Basic Usage
 
-```typescript
+```typescript copy
 import { generate } from 'rut.ts'
 
 const randomRut = generate()
@@ -13,7 +13,7 @@ console.log(randomRut)  // '18.972.631-7'
 
 ## Type Signature
 
-```typescript
+```typescript copy
 function generate(): string
 ```
 
@@ -33,7 +33,7 @@ Returns a `string` containing:
 
 ### Generate Single RUT
 
-```typescript
+```typescript copy
 import { generate } from 'rut.ts'
 
 const rut = generate()
@@ -42,7 +42,7 @@ console.log(rut)  // e.g., '45.123.789-2'
 
 ### Generate Multiple RUTs
 
-```typescript
+```typescript copy
 import { generate } from 'rut.ts'
 
 const ruts = Array.from({ length: 10 }, () => generate())
@@ -52,7 +52,7 @@ console.log(ruts)
 
 ### Generate for Testing
 
-```typescript
+```typescript copy
 import { generate, validate } from 'rut.ts'
 
 // Generate test data
@@ -66,7 +66,7 @@ testRuts.forEach(rut => {
 
 ### Seed Test Database
 
-```typescript
+```typescript copy
 import { generate, decompose } from 'rut.ts'
 
 // Create test users with valid RUTs
@@ -120,7 +120,7 @@ XX.XXX.XXX-Y
 
 ## Examples in Testing
 
-```typescript
+```typescript copy
 import { generate, validate } from 'rut.ts'
 
 describe('RUT validation', () => {

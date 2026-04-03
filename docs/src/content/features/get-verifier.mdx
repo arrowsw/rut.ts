@@ -4,7 +4,7 @@ Extracts just the verifier digit from a RUT string.
 
 ## Basic Usage
 
-```typescript
+```typescript copy
 import { getVerifier } from 'rut.ts'
 
 getVerifier('12.345.678-5')  // '5'
@@ -13,7 +13,7 @@ getVerifier('9068826K')      // 'K'
 
 ## Type Signature
 
-```typescript
+```typescript copy
 function getVerifier(rut: string): VerifierDigit
 function getVerifier(rut: string, options: { throwOnError: false }): VerifierDigit | null
 function getVerifier(rut: string, options: { throwOnError: true }): VerifierDigit
@@ -37,7 +37,7 @@ Returns `VerifierDigit` or `null`:
 
 ### Basic Extraction
 
-```typescript
+```typescript copy
 import { getVerifier } from 'rut.ts'
 
 getVerifier('12.345.678-5')    // '5'
@@ -48,7 +48,7 @@ getVerifier('9068826k')        // 'K' (converted to uppercase)
 
 ### Safe Mode
 
-```typescript
+```typescript copy
 import { getVerifier } from 'rut.ts'
 
 const verifier = getVerifier('invalid', { throwOnError: false })
@@ -57,7 +57,7 @@ console.log(verifier)  // null
 
 ### Verify Correctness
 
-```typescript
+```typescript copy
 import { getVerifier, calculateVerifier, getBody } from 'rut.ts'
 
 const rut = '12.345.678-5'

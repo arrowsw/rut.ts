@@ -8,7 +8,7 @@ All functions support `throwOnError: false` to return `null` instead of throwing
 
 ### Without Safe Mode (Default)
 
-```typescript
+```typescript copy
 import { clean, format, decompose } from 'rut.ts'
 
 try {
@@ -32,7 +32,7 @@ try {
 
 ### With Safe Mode
 
-```typescript
+```typescript copy
 import { clean, format, decompose } from 'rut.ts'
 
 const cleaned = clean('invalid', { throwOnError: false })
@@ -49,7 +49,7 @@ console.log(parts)  // null
 
 ### Form Validation
 
-```typescript
+```typescript copy
 import { validate, format, clean } from 'rut.ts'
 
 function validateRutInput(input: string) {
@@ -89,7 +89,7 @@ function validateRutInput(input: string) {
 
 ### API Route Handler
 
-```typescript
+```typescript copy
 import { validate, clean } from 'rut.ts'
 
 export async function POST(request: Request) {
@@ -119,7 +119,7 @@ export async function POST(request: Request) {
 
 ### Chain Operations Safely
 
-```typescript
+```typescript copy
 import { clean, decompose, calculateVerifier } from 'rut.ts'
 
 function processRutSafely(input: string) {
@@ -157,7 +157,7 @@ function processRutSafely(input: string) {
 
 ### Custom Error Messages
 
-```typescript
+```typescript copy
 import { validate, clean } from 'rut.ts'
 
 function getRutError(rut: string): string | null {
@@ -190,7 +190,7 @@ if (error) {
 
 ### Localized Errors
 
-```typescript
+```typescript copy
 import { validate } from 'rut.ts'
 
 const errorMessages = {
@@ -219,7 +219,7 @@ function validateWithLocale(rut: string, locale: 'en' | 'es' = 'es') {
 
 ## TypeScript Type Guards
 
-```typescript
+```typescript copy
 import { validate, clean } from 'rut.ts'
 
 type Result<T> = 

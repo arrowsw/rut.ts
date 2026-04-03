@@ -4,7 +4,7 @@ Converts RUT strings into a standardized format with dots and hyphens.
 
 ## Basic Usage
 
-```typescript
+```typescript copy
 import { format } from 'rut.ts'
 
 format('123456785')                  // '12.345.678-5'
@@ -13,7 +13,7 @@ format('123456785', { dots: false }) // '12345678-5'
 
 ## Type Signature
 
-```typescript
+```typescript copy
 function format(rut: string, options?: FormatOptions): string
 function format(rut: string, options: FormatOptions & { throwOnError: false }): string | null
 function format(rut: string, options: FormatOptions & { throwOnError: true }): string
@@ -43,7 +43,7 @@ type FormatOptions = {
 
 ### Standard Formatting
 
-```typescript
+```typescript copy
 import { format } from 'rut.ts'
 
 // With dots (default)
@@ -64,7 +64,7 @@ format('  123456785  ')  // '12.345.678-5'
 
 Perfect for real-time formatting as users type:
 
-```typescript
+```typescript copy
 import { format } from 'rut.ts'
 
 // Progressive formatting
@@ -87,7 +87,7 @@ import { Callout } from 'nextra/components'
 
 ### React Example
 
-```typescript
+```typescript copy
 import { format, validate } from 'rut.ts'
 import { useState } from 'react'
 
@@ -114,7 +114,7 @@ function RutInput() {
 
 ### Safe Mode
 
-```typescript
+```typescript copy
 import { format } from 'rut.ts'
 
 // Without safe mode (throws)
@@ -151,7 +151,7 @@ format('invalid', {
 
 ## Edge Cases
 
-```typescript
+```typescript copy
 import { format } from 'rut.ts'
 
 // Empty string

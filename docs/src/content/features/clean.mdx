@@ -4,7 +4,7 @@ Removes extraneous characters and leading zeros from RUT strings, returning a no
 
 ## Basic Usage
 
-```typescript
+```typescript copy
 import { clean } from 'rut.ts'
 
 clean('12.345.678-5')  // '123456785'
@@ -14,7 +14,7 @@ clean('00012345678K')  // '12345678K'
 
 ## Type Signature
 
-```typescript
+```typescript copy
 function clean(rut: string): string
 function clean(rut: string, options: { throwOnError: false }): string | null
 function clean(rut: string, options: { throwOnError: true }): string
@@ -40,7 +40,7 @@ type SafeOptions = {
 
 ### Basic Cleaning
 
-```typescript
+```typescript copy
 import { clean } from 'rut.ts'
 
 // Remove dots and hyphens
@@ -58,7 +58,7 @@ clean('12345678k')  // '12345678K'
 
 ### Safe Mode
 
-```typescript
+```typescript copy
 import { clean } from 'rut.ts'
 
 // Without safe mode (throws)
@@ -87,7 +87,7 @@ const handleInput = (value: string) => {
 
 ### What Gets Cleaned
 
-```typescript
+```typescript copy
 import { clean } from 'rut.ts'
 
 // Multiple hyphens

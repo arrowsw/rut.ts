@@ -4,7 +4,7 @@ Calculates the verifier digit for a given RUT body using the Modulo 11 algorithm
 
 ## Basic Usage
 
-```typescript
+```typescript copy
 import { calculateVerifier } from 'rut.ts'
 
 calculateVerifier('12345678')  // '5'
@@ -13,7 +13,7 @@ calculateVerifier('24657622')  // 'K'
 
 ## Type Signature
 
-```typescript
+```typescript copy
 function calculateVerifier(rutBody: string): VerifierDigit
 function calculateVerifier(rutBody: string, options: { throwOnError: false }): VerifierDigit | null
 function calculateVerifier(rutBody: string, options: { throwOnError: true }): VerifierDigit
@@ -49,7 +49,7 @@ The function implements the **Modulo 11 algorithm**:
 
 ### Basic Calculation
 
-```typescript
+```typescript copy
 import { calculateVerifier } from 'rut.ts'
 
 // Numeric verifiers
@@ -64,7 +64,7 @@ calculateVerifier('14625621')  // 'K'
 
 ### Building a Complete RUT
 
-```typescript
+```typescript copy
 import { calculateVerifier, format } from 'rut.ts'
 
 const body = '12345678'
@@ -76,7 +76,7 @@ console.log(completeRut)  // '12.345.678-5'
 
 ### Safe Mode
 
-```typescript
+```typescript copy
 import { calculateVerifier } from 'rut.ts'
 
 // Without safe mode (throws)
@@ -103,7 +103,7 @@ const handleBodyInput = (body: string) => {
 
 ### Input Flexibility
 
-```typescript
+```typescript copy
 import { calculateVerifier } from 'rut.ts'
 
 // Accepts formatted input (dots/hyphens removed)
