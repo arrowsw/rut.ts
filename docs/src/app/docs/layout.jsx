@@ -13,7 +13,7 @@ export default async function DocsLayout({ children }) {
           <b>Rut.ts</b>
         </div>
       }
-      projectLink="https://github.com/arrowsoftwarehq/rut.ts"
+      projectLink="https://github.com/arrowsw/rut.ts"
     />
   )
   const pageMap = await getPageMap()
@@ -38,7 +38,7 @@ export default async function DocsLayout({ children }) {
         </Footer>
       }
       editLink="Edit this page on GitHub"
-      docsRepositoryBase="https://github.com/arrowsoftwarehq/rut.ts/tree/main/docs"
+      docsRepositoryBase="https://github.com/arrowsw/rut.ts/tree/main/docs"
       sidebar={{ defaultMenuCollapseLevel: 1 }}
       pageMap={pageMap}
     >

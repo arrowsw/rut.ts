@@ -17,8 +17,8 @@ Key technical details:
 
 - [Installation & Quick Start](https://rut.arrowsw.com/docs): Getting started guide with installation and basic examples
 - [Package on npm](https://www.npmjs.com/package/rut.ts): npm registry page with version history and stats
-- [GitHub Repository](https://github.com/arrowsoftwarehq/rut.ts): Source code, issues, and contribution guidelines
-- [README](https://github.com/arrowsoftwarehq/rut.ts/blob/main/README.md): Quick reference with code examples
+- [GitHub Repository](https://github.com/arrowsw/rut.ts): Source code, issues, and contribution guidelines
+- [README](https://github.com/arrowsw/rut.ts/blob/main/README.md): Quick reference with code examples
 
 ## Core API Functions
 
@@ -43,11 +43,11 @@ Key technical details:
 
 - [API Reference](https://rut.arrowsw.com/docs/api-reference): Complete API documentation with all function signatures and TypeScript types
 - [TypeScript Types](https://rut.arrowsw.com/docs/api-reference#typescript-types): Exported types including DecomposedRut, FormatOptions, ValidateOptions, SafeOptions, and VerifierDigit
-- [Changelog](https://github.com/arrowsoftwarehq/rut.ts/blob/main/CHANGELOG.md): Release notes and breaking changes, starting at v4.0.0
+- [Changelog](https://github.com/arrowsw/rut.ts/blob/main/CHANGELOG.md): Release notes and breaking changes, starting at v4.0.0
 
 ## Optional
 
 - [Testing Guide](https://rut.arrowsw.com/docs/testing): Information about the test suite with 182 tests covering all edge cases
 - [Contributing Guide](https://rut.arrowsw.com/docs/contributing): How to contribute to the project, development setup, and coding standards
-- [GitHub Issues](https://github.com/arrowsoftwarehq/rut.ts/issues): Report bugs, request features, or ask questions
+- [GitHub Issues](https://github.com/arrowsw/rut.ts/issues): Report bugs, request features, or ask questions
 - [Package Size Analysis](https://pkg-size.dev/rut.ts): Detailed breakdown of package size and bundle analysis

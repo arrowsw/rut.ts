@@ -64,7 +64,7 @@ export default function HomePage() {
               Get Started →
             </Link>
             <a
-              href="https://github.com/arrowsoftwarehq/rut.ts"
+              href="https://github.com/arrowsw/rut.ts"
               target="_blank"
               rel="noopener noreferrer"
               style={{
