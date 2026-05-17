@@ -1,106 +1,84 @@
-import { getBody } from '../src'
+import { calculateVerifier, clean, getBody, getVerifier } from '../src'
 
-describe('getBody function', () => {
-  describe('basic functionality', () => {
-    test('should return the body of a RUT', () => {
-      expect(getBody('18.972.631-7')).toBe('18972631')
-    })
-
-    test('extracts body from RUT with K verifier', () => {
-      expect(getBody('9.068.826-K')).toBe('9068826')
-      expect(getBody('14.625.621-k')).toBe('14625621')
-    })
-
-    test('extracts body from RUT without dots', () => {
-      expect(getBody('18972631-7')).toBe('18972631')
-      expect(getBody('9068826K')).toBe('9068826')
-    })
-
-    test('extracts body from RUT without hyphen', () => {
-      expect(getBody('189726317')).toBe('18972631')
-      expect(getBody('12345678K')).toBe('12345678')
-    })
-  })
-
-  describe('various formats', () => {
-    test('handles RUT with leading zeros', () => {
-      expect(getBody('009.068.826-K')).toBe('9068826')
-      expect(getBody('0018972631-7')).toBe('18972631')
-    })
-
-    test('handles RUT with extra characters', () => {
-      expect(getBody('  18.972.631-7  ')).toBe('18972631')
-      expect(getBody('(18.972.631-7)')).toBe('18972631')
-    })
-
-    test('handles RUT with all special characters removed', () => {
-      expect(getBody('18#972#631-7')).toBe('18972631')
+/**
+ * `getBody` is `clean(rut)?.slice(0, -1)`. The matrix of parsing edge cases
+ * lives in `clean.test.ts`. This file covers what is unique to `getBody`:
+ *
+ * 1. it returns the body (everything except the last char of clean output)
+ * 2. it never returns a K in the result (K is always the verifier)
+ * 3. safe-mode null contract
+ * 4. generic error message
+ * 5. consistency with clean() and getVerifier()
+ */
+describe('getBody', () => {
+  describe('basic extraction', () => {
+    test.each([
+      ['18.972.631-7', '18972631'],
+      ['9.068.826-K', '9068826'],
+      ['14.625.621-k', '14625621'],
+      ['189726317', '18972631'], // compact
+      ['9068826K', '9068826'], // compact
+      ['009.068.826-K', '9068826'], // leading zeros
+      ['  18.972.631-7  ', '18972631'], // surrounding whitespace
+      ['(18.972.631-7)', '18972631'], // permissive char strip
+      ['18#972#631-7', '18972631'], // special chars stripped
+      ['18.264.159-0', '18264159'], // verifier 0
+      ['1.000.000-2', '1000000'], // minimum-length body
+    ])('getBody(%p) === %p', (input, expected) => {
+      expect(getBody(input)).toBe(expected)
     })
   })
 
-  describe('length variations', () => {
-    test('extracts body from 8-digit RUT', () => {
-      expect(getBody('9.068.826-K')).toBe('9068826')
-      expect(getBody('1.000.000-2')).toBe('1000000')
-    })
-
-    test('extracts body from 9-digit RUT', () => {
-      expect(getBody('18.972.631-7')).toBe('18972631')
-      expect(getBody('99.999.999-6')).toBe('99999999')
-    })
+  test('the returned body never contains K (K is always the verifier)', () => {
+    for (const rut of ['9.068.826-K', '14.625.621-k', '9068826K', '14625621K']) {
+      const body = getBody(rut)
+      expect(body).not.toContain('K')
+      expect(body).not.toContain('k')
+    }
   })
 
-  describe('error cases', () => {
-    test('throws error for invalid RUT', () => {
-      expect(() => getBody('123')).toThrow()
-      expect(() => getBody('invalid')).toThrow()
-      expect(() => getBody('')).toThrow()
+  describe('safe mode (throwOnError: false)', () => {
+    test.each([
+      ['', 'empty'],
+      ['123', 'too short'],
+      ['invalid', 'non-numeric'],
+    ])('returns null for invalid input: %p (%s)', (input, _label) => {
+      expect(getBody(input, { throwOnError: false })).toBeNull()
     })
 
-    test('throws error for too short RUT', () => {
-      expect(() => getBody('1234567')).toThrow()
+    test.each([[123456789], [null], [undefined], [{}]])('returns null for non-string input: %p', (value) => {
+      expect(getBody(value as unknown as string, { throwOnError: false })).toBeNull()
     })
 
-    test('throws error for too long RUT', () => {
-      expect(() => getBody('12345678901')).toThrow()
-    })
-  })
-
-  describe('with throwOnError: false (safe mode)', () => {
-    test('returns null for invalid RUT instead of throwing', () => {
-      expect(getBody('123', { throwOnError: false })).toBeNull()
-      expect(getBody('', { throwOnError: false })).toBeNull()
-      expect(getBody('invalid', { throwOnError: false })).toBeNull()
-    })
-
-    test('returns null for non-string inputs', () => {
-      expect(getBody(123456789 as any, { throwOnError: false })).toBeNull()
-      expect(getBody(null as any, { throwOnError: false })).toBeNull()
-    })
-
-    test('returns body when valid', () => {
+    test('returns the body for valid input', () => {
       expect(getBody('18.972.631-7', { throwOnError: false })).toBe('18972631')
       expect(getBody('9.068.826-K', { throwOnError: false })).toBe('9068826')
     })
   })
 
-  describe('edge cases', () => {
-    test('extracts body correctly when verifier is 0', () => {
-      expect(getBody('18.264.159-0')).toBe('18264159')
+  describe('error mode (default)', () => {
+    test('throws a generic error with no PII echoed', () => {
+      expect(() => getBody('secret-rut')).toThrow('Invalid RUT input')
+      expect(() => getBody('secret-rut')).not.toThrow(/secret/)
     })
 
-    test('handles minimum valid RUT', () => {
-      expect(getBody('1.000.000-2')).toBe('1000000')
+    test.each([['1234567'], ['12345678901']])('throws for out-of-range length: %p', (input) => {
+      expect(() => getBody(input)).toThrow('Invalid RUT input')
     })
+  })
 
-    test('handles maximum valid RUT', () => {
-      expect(getBody('99.999.999-6')).toBe('99999999')
-    })
+  describe('consistency with clean and getVerifier (property)', () => {
+    test.each(['18.972.631-7', '9.068.826-K', '14.625.621-k', '009.068.826-K', ' 18972631-7 '])(
+      'getBody(%p) + getVerifier(%p) === clean(%p)',
+      (rut) => {
+        expect(getBody(rut) + getVerifier(rut)).toBe(clean(rut))
+      },
+    )
 
-    test('body never contains K', () => {
-      const body = getBody('9.068.826-K')
-      expect(body).not.toContain('K')
-      expect(body).not.toContain('k')
+    test('calculateVerifier(getBody(x)) reproduces the canonical verifier of x for valid x', () => {
+      for (const rut of ['18.972.631-7', '9.068.826-K', '12.345.678-5', '99.999.999-9']) {
+        expect(calculateVerifier(getBody(rut))).toBe(getVerifier(rut))
+      }
     })
   })
 })

@@ -1,138 +1,131 @@
 import { clean } from '../src'
 
-describe('Test Suite: clean', () => {
-  describe('with throwOnError: false (safe mode)', () => {
-    test('Returns null for empty string instead of throwing', () => {
-      expect(clean('', { throwOnError: false })).toBeNull()
-    })
-
-    test('Returns null for RUTs that are too short', () => {
-      expect(clean('1.2.34-K', { throwOnError: false })).toBeNull()
-      expect(clean('123', { throwOnError: false })).toBeNull()
-      expect(clean('1234567', { throwOnError: false })).toBeNull()
-    })
-
-    test('Returns null for RUTs that are too long', () => {
-      expect(clean('12.345.6789012-3', { throwOnError: false })).toBeNull()
-      expect(clean('12345678901', { throwOnError: false })).toBeNull()
-    })
-
-    test('Returns null for RUTs with K not at the end', () => {
-      expect(clean('K1234567', { throwOnError: false })).toBeNull()
-      expect(clean('1234K567', { throwOnError: false })).toBeNull()
-      expect(clean('KK345678', { throwOnError: false })).toBeNull()
-    })
-
-    test('Returns null for non-string inputs', () => {
-      expect(clean(123456789 as any, { throwOnError: false })).toBeNull()
-      expect(clean(null as any, { throwOnError: false })).toBeNull()
-      expect(clean(undefined as any, { throwOnError: false })).toBeNull()
-    })
-
-    test('Returns cleaned RUT when valid', () => {
-      expect(clean('12.345.678-k', { throwOnError: false })).toBe('12345678K')
-      expect(clean('9.068.826-K', { throwOnError: false })).toBe('9068826K')
+describe('clean', () => {
+  describe('happy path — permissive normalization', () => {
+    // `clean()` is intentionally permissive: it strips non-[0-9kK], leading
+    // zeros, and uppercases. It does NOT validate the verifier digit — that
+    // is `validate()`'s job. These cases document the normalization contract.
+    test.each([
+      ['12.345.678-k', '12345678K', 'canonical dotted, lowercase k'],
+      ['12.345.678-K', '12345678K', 'canonical dotted, uppercase K'],
+      ['0000012.345.678-K', '12345678K', 'many leading zeros'],
+      ['00009.068.826-K', '9068826K', '7-digit body + leading zeros'],
+      ['00000012345678K', '12345678K', 'compact + many leading zeros'],
+      ['123456789', '123456789', 'compact already-clean numeric'],
+      ['12345678K', '12345678K', 'compact already-clean with K'],
+      [' 12 345 6 78 - 9 ', '123456789', 'whitespace + hyphens scattered'],
+      ['   12345678K   ', '12345678K', 'surrounding whitespace'],
+      ['12-34-56-789', '123456789', 'extra hyphens'],
+      ['12-345-678-K', '12345678K', 'extra hyphens with K'],
+      ['12#34%56&@78K', '12345678K', 'special characters interleaved'],
+      ['12.345.678@#$-K', '12345678K', 'trailing garbage before verifier'],
+      ['12345678#', '12345678', 'trailing garbage stripped'],
+      ['12345678K###', '12345678K', 'trailing garbage after K'],
+      ['(12.345.678-K)', '12345678K', 'parentheses around RUT'],
+      ['12.345.678.K', '12345678K', 'dot before verifier'],
+      ['9068826k', '9068826K', 'compact lowercase k uppercased'],
+      ['10000002', '10000002', 'minimum-length 8-digit numeric'],
+      ['999999996', '999999996', 'maximum-length 9-char numeric'],
+    ])('clean(%p) === %p (%s)', (input, expected, _label) => {
+      expect(clean(input)).toBe(expected)
     })
   })
 
-  describe('basic cleaning', () => {
-    test('Removes non-numeric characters except K, and converts to uppercase', () => {
-      expect(clean('12.345.678-k')).toBe('12345678K')
-      expect(clean('12.345.678-K')).toBe('12345678K')
+  describe('safe mode — returns null instead of throwing', () => {
+    test.each([
+      ['', 'empty'],
+      ['   ', 'whitespace only'],
+      ['1.2.34-K', 'too short after normalization'],
+      ['123', 'too short'],
+      ['1234567', '7 chars (under MIN_RUT_LENGTH)'],
+      ['12.345.6789012-3', 'too long after normalization'],
+      ['12345678901', '11 chars (over MAX_RUT_LENGTH)'],
+      ['K1234567', 'K not at the end (leading)'],
+      ['1234K567', 'K in the middle'],
+      ['KK345678', 'multiple K'],
+      ['1234567KK', 'trailing multiple K'],
+      ['####', 'only invalid characters'],
+      ['abcdefgh', 'only alphabetic'],
+      ['--------', 'only separators'],
+    ])('returns null for invalid input: %p (%s)', (input, _label) => {
+      expect(clean(input, { throwOnError: false })).toBeNull()
     })
 
-    test('Removes leading zeros', () => {
-      expect(clean('0000012.345.678-K')).toBe('12345678K')
-      expect(clean('00009.068.826-K')).toBe('9068826K')
-      expect(clean('00000012345678K')).toBe('12345678K')
+    test.each([
+      [123456789, 'number'],
+      [null, 'null'],
+      [undefined, 'undefined'],
+      [{}, 'object'],
+      [Symbol('rut'), 'symbol'],
+    ])('returns null for non-string input: %p (%s)', (value, _label) => {
+      expect(clean(value as unknown as string, { throwOnError: false })).toBeNull()
     })
 
-    test('Keeps the RUT clean if it is already in the correct format', () => {
-      expect(clean('123456789')).toBe('123456789')
-      expect(clean('12345678K')).toBe('12345678K')
-    })
-
-    test('Removes white spaces', () => {
-      expect(clean(' 12 345 6 78 - 9 ')).toBe('123456789')
-      expect(clean('   12345678K   ')).toBe('12345678K')
-    })
-
-    test('Removes additional hyphens', () => {
-      expect(clean('12-34-56-789')).toBe('123456789')
-      expect(clean('12-345-678-K')).toBe('12345678K')
-    })
-
-    test('Removes special characters', () => {
-      expect(clean('12#34%56&@78K')).toBe('12345678K')
-      expect(clean('12.345.678@#$-K')).toBe('12345678K')
-    })
-
-    test('Cleans even if the RUT ends in invalid characters', () => {
-      expect(clean('12345678#')).toBe('12345678')
-      expect(clean('12345678K###')).toBe('12345678K')
+    test.each([
+      ['12.345.678-k', '12345678K'],
+      ['9.068.826-K', '9068826K'],
+      ['189726317', '189726317'],
+    ])('returns cleaned value for valid input: %p → %p', (input, expected) => {
+      expect(clean(input, { throwOnError: false })).toBe(expected)
     })
   })
 
-  describe('error cases', () => {
-    test('Throws error with empty string', () => {
-      expect(() => clean('')).toThrow()
-      expect(() => clean('   ')).toThrow()
-    })
-
-    test('Throws a generic error without echoing the RUT value', () => {
+  describe('error mode (default — throwOnError defaults to true)', () => {
+    test('throws a generic error message that never echoes the input (PII protection)', () => {
+      // Regression test for v4 breaking change #4 / security item #3:
+      // the message must be the constant 'Invalid RUT input'.
       expect(() => clean('123')).toThrow('Invalid RUT input')
       expect(() => clean('123')).not.toThrow(/123/)
+      expect(() => clean('secret-rut-leak')).toThrow('Invalid RUT input')
+      expect(() => clean('secret-rut-leak')).not.toThrow(/secret|leak/)
     })
 
-    test('Throws error with RUTs that are too long or too short', () => {
-      expect(() => clean('1.2.34-K')).toThrow()
-      expect(() => clean('12.345.6789012-3')).toThrow()
-      expect(() => clean('1234567')).toThrow()
-      expect(() => clean('12345678901')).toThrow()
+    test.each([
+      [''],
+      ['   '],
+      ['1.2.34-K'],
+      ['12.345.6789012-3'],
+      ['1234567'],
+      ['12345678901'],
+      ['K1234567'],
+      ['1234K567'],
+      ['1234567KK'],
+      ['####'],
+      ['abcdefgh'],
+    ])('throws for invalid input: %p', (input) => {
+      expect(() => clean(input)).toThrow('Invalid RUT input')
     })
 
-    test('Throws error with RUTs that have the letter K not at the end', () => {
-      expect(() => clean('K1234567')).toThrow()
-      expect(() => clean('1234K567')).toThrow()
-      expect(() => clean('12K45678')).toThrow()
+    test('does not throw for the minimum and maximum lengths after normalization', () => {
       expect(() => clean('1234567K')).not.toThrow()
       expect(() => clean('12345678K')).not.toThrow()
     })
+  })
 
-    test('Throws error if only invalid characters are included', () => {
-      expect(() => clean('####')).toThrow()
-      expect(() => clean('abcdefgh')).toThrow()
-      expect(() => clean('--------')).toThrow()
+  describe('security — MAX_RUT_INPUT_LENGTH (64) cap', () => {
+    test('accepts input padded to exactly 64 chars', () => {
+      const padded = '0'.repeat(55) + '123456785'
+      expect(padded.length).toBe(64)
+      expect(clean(padded)).toBe('123456785')
     })
 
-    test('Throws error for multiple K letters', () => {
-      expect(() => clean('1234567KK')).toThrow()
-      expect(() => clean('KK345678')).toThrow()
+    test('rejects input at 65 chars (over the cap)', () => {
+      const overCap = '0'.repeat(56) + '123456785'
+      expect(overCap.length).toBe(65)
+      expect(clean(overCap, { throwOnError: false })).toBeNull()
+      expect(() => clean(overCap)).toThrow('Invalid RUT input')
     })
   })
 
-  describe('edge cases', () => {
-    test('Handles lowercase k correctly', () => {
-      expect(clean('12345678k')).toBe('12345678K')
-      expect(clean('9068826k')).toBe('9068826K')
-    })
-
-    test('Handles minimum length RUT (8 chars)', () => {
-      expect(clean('9068826K')).toBe('9068826K')
-      expect(clean('10000002')).toBe('10000002')
-    })
-
-    test('Handles maximum length RUT (9 chars)', () => {
-      expect(clean('999999996')).toBe('999999996')
-      expect(clean('189726317')).toBe('189726317')
-    })
-
-    test('Handles RUTs with only dots', () => {
-      expect(clean('12.345.678.K')).toBe('12345678K')
-    })
-
-    test('Handles RUTs with parentheses', () => {
-      expect(clean('(12.345.678-K)')).toBe('12345678K')
-    })
+  describe('idempotency', () => {
+    // Normalization should be a fixed point on its own output. Detects any
+    // drift introduced by future refactors of the normalization helpers.
+    test.each(['12.345.678-5', '14.625.621-k', '009.068.826-K', ' 12 345 6 78 - 9 ', '(18.972.631-7)'])(
+      'clean(clean(%p)) === clean(%p)',
+      (input) => {
+        const once = clean(input)
+        expect(clean(once)).toBe(once)
+      },
+    )
   })
 })

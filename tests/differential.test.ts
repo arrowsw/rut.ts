@@ -363,4 +363,82 @@ const CORPUS = Number(process.env.DIFF_CORPUS ?? 1_000_000)
     expect(validateV4('12.345678-5')).toBe(false)
     expect(legacyValidate('12.345.678-5')).toBe(validateV4('12.345.678-5'))
   })
+
+  /**
+   * Mini-corpus run on every CI invocation (no env flag required). This is a
+   * 1 000-case version of the full differential — small enough to be cheap
+   * (< 100 ms locally) but large enough to make sure that the only divergence
+   * shapes between v3.4.0 and v4.0.0 are the ones documented in the CHANGELOG.
+   *
+   * The full 1 M-case report-writing run is still gated behind
+   * `RUN_DIFFERENTIAL=1`; this block does NOT write any report.
+   */
+  test('mini-corpus (1k cases) only diverges on documented shapes', () => {
+    const allowedRegressions = new Set(['noncanonical-grouping', 'len-65-over-cap'])
+    const allowedNewAccepts = new Set(['surrounding-space'])
+
+    const regressionShapes = new Set<string>()
+    const newAcceptShapes = new Set<string>()
+    const rng = mulberry32(0x1234_5678)
+    const ri = (min: number, max: number) => min + Math.floor(rng() * (max - min + 1))
+
+    for (let i = 0; i < 250; i++) {
+      // Stratum A: known-valid bodies in many shapes.
+      const len = rng() < 0.5 ? 7 : 8
+      let body = String(ri(0, 9) || 1)
+      do {
+        body = String(ri(0, 9) || 1)
+        for (let j = 1; j < len; j++) body += String(ri(0, 9))
+      } while (/^(.)\1*$/.test(body))
+      const dv = dvOf(body)
+
+      const head = body.length === 8 ? body.slice(0, 2) : body.slice(0, 1)
+      const rest = body.length === 8 ? body.slice(2) : body.slice(1)
+      const dotted = `${head}.${rest.slice(0, 3)}.${rest.slice(3)}`
+
+      const rows: Array<{ input: string; shape: string }> = [
+        { input: `${body}${dv}`, shape: 'compact' },
+        { input: `${body}-${dv}`, shape: 'compact+hyphen' },
+        { input: `${dotted}-${dv}`, shape: 'canonical-dotted' },
+        { input: `  ${dotted}-${dv}  `, shape: 'surrounding-space' },
+        { input: `${body.slice(0, 2)}.${body.slice(2)}-${dv}`, shape: 'noncanonical-grouping' },
+      ]
+      for (const { input, shape } of rows) {
+        const o = legacyValidate(input)
+        const n = validateV4(input)
+        if (o && !n) regressionShapes.add(shape)
+        else if (!o && n) newAcceptShapes.add(shape)
+      }
+    }
+
+    // 65-char-padded valid RUT: v3 accepts, v4 rejects (cap).
+    {
+      const overCap = '0'.repeat(56) + '123456785'
+      const o = legacyValidate(overCap)
+      const n = validateV4(overCap)
+      if (o && !n) regressionShapes.add('len-65-over-cap')
+    }
+
+    const unexpectedRegressions = [...regressionShapes].filter((s) => !allowedRegressions.has(s))
+    const unexpectedNewAccepts = [...newAcceptShapes].filter((s) => !allowedNewAccepts.has(s))
+    expect(unexpectedRegressions).toEqual([])
+    expect(unexpectedNewAccepts).toEqual([])
+  })
+
+  test('ReDoS on 100k-char adversarial input is below 50 ms on v4', () => {
+    // Defense-in-depth — also covered in validate.test.ts. The v3 frozen regex
+    // is *deliberately* never fed this input here; we only time the hardened
+    // v4 validator.
+    const adversarial = '0'.repeat(100_000) + 'x'
+    const start = performance.now()
+    const result = validateV4(adversarial)
+    const elapsed = performance.now() - start
+    expect(result).toBe(false)
+    expect(elapsed).toBeLessThan(50)
+  })
+
+  test('strict uppercase-K bypass remains fixed', () => {
+    expect(legacyValidate('8.888.888-K', { strict: true })).toBe(true) // documented v3 bug
+    expect(validateV4('8.888.888-K', { strict: true })).toBe(false) // v4 fix
+  })
 })

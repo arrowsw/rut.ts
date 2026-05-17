@@ -1,131 +1,112 @@
-import { getVerifier } from '../src'
+import { calculateVerifier, clean, getBody, getVerifier } from '../src'
 
-describe('getVerifier function', () => {
-  describe('basic functionality', () => {
-    test('should return the verifier of a RUT', () => {
-      expect(getVerifier('23.579.222-2')).toBe('2')
-      expect(getVerifier('18.972.631-7')).toBe('7')
-    })
-
-    test('extracts K verifier (uppercase)', () => {
-      expect(getVerifier('9.068.826-K')).toBe('K')
-      expect(getVerifier('14.625.621-K')).toBe('K')
-    })
-
-    test('extracts k verifier and converts to uppercase', () => {
-      expect(getVerifier('9.068.826-k')).toBe('K')
-      expect(getVerifier('14.625.621-k')).toBe('K')
-    })
-
-    test('extracts verifier from RUT without dots', () => {
-      expect(getVerifier('18972631-7')).toBe('7')
-      expect(getVerifier('9068826K')).toBe('K')
-    })
-
-    test('extracts verifier from RUT without hyphen', () => {
-      expect(getVerifier('189726317')).toBe('7')
-      expect(getVerifier('12345678K')).toBe('K')
-    })
-  })
-
-  describe('various formats', () => {
-    test('handles RUT with leading zeros', () => {
-      expect(getVerifier('009.068.826-K')).toBe('K')
-      expect(getVerifier('0018972631-7')).toBe('7')
-    })
-
-    test('handles RUT with extra characters', () => {
-      expect(getVerifier('  18.972.631-7  ')).toBe('7')
-      expect(getVerifier('(18.972.631-7)')).toBe('7')
-    })
-
-    test('handles RUT with special characters', () => {
-      expect(getVerifier('18#972#631-7')).toBe('7')
+/**
+ * `getVerifier` is `clean(rut)?.slice(-1)`. Parsing edge cases are covered
+ * by `clean.test.ts`. This file covers what is unique to `getVerifier`:
+ *
+ * 1. it returns a single character of type VerifierDigit ('0'..'9' | 'K')
+ * 2. lowercase k is normalized to uppercase K
+ * 3. the full 0..9, K image is reachable via real RUTs
+ * 4. safe-mode null contract
+ * 5. generic error message
+ */
+describe('getVerifier', () => {
+  describe('basic extraction', () => {
+    test.each([
+      ['23.579.222-2', '2'],
+      ['18.972.631-7', '7'],
+      ['9.068.826-K', 'K'],
+      ['14.625.621-K', 'K'],
+      ['18972631-7', '7'],
+      ['189726317', '7'],
+      ['009.068.826-K', 'K'],
+      ['  18.972.631-7  ', '7'],
+      ['(18.972.631-7)', '7'],
+      ['18#972#631-7', '7'],
+    ])('getVerifier(%p) === %p', (input, expected) => {
+      expect(getVerifier(input)).toBe(expected)
     })
   })
 
-  describe('verifier digit variations', () => {
-    test('extracts verifier digit 0', () => {
-      expect(getVerifier('18.264.159-0')).toBe('0')
-    })
-
-    test('extracts all numeric verifiers (0-9)', () => {
-      expect(getVerifier('18.264.159-0')).toBe('0')
-      expect(getVerifier('11.111.111-1')).toBe('1')
-      expect(getVerifier('23.579.222-2')).toBe('2')
-      expect(getVerifier('18.972.631-7')).toBe('7')
-      expect(getVerifier('18.264.958-9')).toBe('9')
-    })
-
-    test('extracts K verifier', () => {
-      expect(getVerifier('9.068.826-K')).toBe('K')
+  describe('case normalization', () => {
+    test.each([
+      ['9.068.826-k', 'K'],
+      ['14.625.621-k', 'K'],
+      ['9068826k', 'K'],
+      ['9.068.826-K', 'K'],
+    ])('lowercase k is uppercased: %p → %p', (input, expected) => {
+      expect(getVerifier(input)).toBe(expected)
     })
   })
 
-  describe('length variations', () => {
-    test('extracts verifier from 8-digit RUT', () => {
-      expect(getVerifier('9.068.826-K')).toBe('K')
-      expect(getVerifier('1.000.000-2')).toBe('2')
-    })
-
-    test('extracts verifier from 9-digit RUT', () => {
-      expect(getVerifier('18.972.631-7')).toBe('7')
-      expect(getVerifier('99.999.999-6')).toBe('6')
-    })
-  })
-
-  describe('error cases', () => {
-    test('throws error for invalid RUT', () => {
-      expect(() => getVerifier('123')).toThrow()
-      expect(() => getVerifier('invalid')).toThrow()
-      expect(() => getVerifier('')).toThrow()
-    })
-
-    test('throws error for too short RUT', () => {
-      expect(() => getVerifier('1234567')).toThrow()
-    })
-
-    test('throws error for too long RUT', () => {
-      expect(() => getVerifier('12345678901')).toThrow()
+  describe('full image (every possible verifier output)', () => {
+    // For each of the 11 possible outputs, take the smallest 8-digit body
+    // whose Modulo-11 verifier is that output, and verify that getVerifier
+    // returns it on the compact body+DV string.
+    const cases: Array<[string, string]> = [
+      ['10000004', '0'],
+      ['10000009', '1'],
+      ['10000003', '2'],
+      ['10000008', '3'],
+      ['10000002', '4'],
+      ['10000007', '5'],
+      ['10000001', '6'],
+      ['10000006', '7'],
+      ['10000000', '8'],
+      ['10000005', '9'],
+      ['10000013', 'K'],
+    ]
+    test.each(cases)('extracts verifier %2$p from compact RUT (body %1$s)', (body, dv) => {
+      expect(getVerifier(body + dv)).toBe(dv)
     })
   })
 
-  describe('with throwOnError: false (safe mode)', () => {
-    test('returns null for invalid RUT instead of throwing', () => {
-      expect(getVerifier('123', { throwOnError: false })).toBeNull()
-      expect(getVerifier('', { throwOnError: false })).toBeNull()
-      expect(getVerifier('invalid', { throwOnError: false })).toBeNull()
+  test('return value is always exactly one character', () => {
+    for (const rut of ['18.972.631-7', '9.068.826-K', '14.625.621-k', '99.999.999-9']) {
+      expect(getVerifier(rut)).toHaveLength(1)
+    }
+  })
+
+  describe('safe mode (throwOnError: false)', () => {
+    test.each([
+      ['', 'empty'],
+      ['123', 'too short'],
+      ['invalid', 'non-numeric'],
+    ])('returns null for invalid input: %p (%s)', (input, _label) => {
+      expect(getVerifier(input, { throwOnError: false })).toBeNull()
     })
 
-    test('returns null for non-string inputs', () => {
-      expect(getVerifier(123456789 as any, { throwOnError: false })).toBeNull()
-      expect(getVerifier(null as any, { throwOnError: false })).toBeNull()
+    test.each([[123456789], [null], [undefined], [{}]])('returns null for non-string input: %p', (value) => {
+      expect(getVerifier(value as unknown as string, { throwOnError: false })).toBeNull()
     })
 
-    test('returns verifier when valid', () => {
+    test('returns the verifier for valid input', () => {
       expect(getVerifier('23.579.222-2', { throwOnError: false })).toBe('2')
       expect(getVerifier('9.068.826-K', { throwOnError: false })).toBe('K')
     })
   })
 
-  describe('edge cases', () => {
-    test('verifier is always a single character', () => {
-      expect(getVerifier('18.972.631-7')).toHaveLength(1)
-      expect(getVerifier('9.068.826-K')).toHaveLength(1)
+  describe('error mode (default)', () => {
+    test('throws a generic error with no PII echoed', () => {
+      expect(() => getVerifier('secret-rut')).toThrow('Invalid RUT input')
+      expect(() => getVerifier('secret-rut')).not.toThrow(/secret/)
     })
 
-    test('handles minimum valid RUT', () => {
-      expect(getVerifier('1.000.000-2')).toBe('2')
+    test.each([['1234567'], ['12345678901']])('throws for out-of-range length: %p', (input) => {
+      expect(() => getVerifier(input)).toThrow('Invalid RUT input')
     })
+  })
 
-    test('handles maximum valid RUT', () => {
-      expect(getVerifier('99.999.999-6')).toBe('6')
-    })
-
-    test('verifier is always uppercase for K', () => {
-      expect(getVerifier('9.068.826-k')).toBe('K')
-      expect(getVerifier('9068826k')).toBe('K')
-      expect(getVerifier('9.068.826-K')).toBe('K')
-    })
+  describe('consistency with clean and getBody (property)', () => {
+    test.each(['18.972.631-7', '9.068.826-K', '14.625.621-k', '009.068.826-K'])(
+      'clean(%p).endsWith(getVerifier(%p))',
+      (rut) => {
+        const c = clean(rut)
+        const v = getVerifier(rut)
+        expect(c.endsWith(v)).toBe(true)
+        // And the digit value must match what calculateVerifier computes for the body.
+        expect(calculateVerifier(getBody(rut))).toBe(v)
+      },
+    )
   })
 })

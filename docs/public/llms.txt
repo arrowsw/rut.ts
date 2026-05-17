@@ -7,7 +7,7 @@ Rut.ts provides a comprehensive set of utilities for working with Chilean RUTs -
 As of **v4.0.0** (a breaking release focused on production identity hardening), `validate()` and `isRutLike()` accept only three canonical shapes — compact (`123456785`), compact + hyphen (`12345678-5`), and canonical dotted (`12.345.678-5`, optionally with leading zeros and surrounding whitespace). Non-canonical dot grouping that 3.x tolerated is now rejected, input is capped at 64 characters as a security bound (not a format rule), and errors are a generic `Invalid RUT input` so Chilean ID values are never echoed into logs or traces. `clean()` and `decompose()` remain intentionally permissive for normalization and must not be treated as validation. Review the CHANGELOG before upgrading from 3.x.
 
 Key technical details:
-- **Size**: ~3KB minified, ~1.1KB gzipped
+- **Size**: ~3KB minified, ~1.4KB gzipped
 - **Zero dependencies**: Pure TypeScript implementation
 - **Safe mode**: All functions support `{ throwOnError: false }` to return `null` instead of throwing
 - **Dual package**: Native ESM with CommonJS fallback
@@ -47,7 +47,7 @@ Key technical details:
 
 ## Optional
 
-- [Testing Guide](https://rut.arrowsw.com/docs/testing): Information about the test suite with 182 tests covering all edge cases
+- [Testing Guide](https://rut.arrowsw.com/docs/testing): Information about the test suite with 394 tests covering all edge cases
 - [Contributing Guide](https://rut.arrowsw.com/docs/contributing): How to contribute to the project, development setup, and coding standards
 - [GitHub Issues](https://github.com/arrowsw/rut.ts/issues): Report bugs, request features, or ask questions
 - [Package Size Analysis](https://pkg-size.dev/rut.ts): Detailed breakdown of package size and bundle analysis
