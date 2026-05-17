@@ -4,6 +4,8 @@
 
 Rut.ts provides a comprehensive set of utilities for working with Chilean RUTs - the unique tax identification numbers used throughout Chile. The library supports validation (including strict mode for suspicious patterns), formatting (both standard and incremental for real-time input), cleaning, decomposition, random generation, and verifier digit calculation. It's fully typed, tree-shakeable, supports both ESM and CommonJS, and works in Node.js and browsers. The RUT format follows the pattern `XX.XXX.XXX-Y` where the verifier digit is calculated using the Modulo 11 algorithm.
 
+As of **v4.0.0** (a breaking release focused on production identity hardening), `validate()` and `isRutLike()` accept only three canonical shapes — compact (`123456785`), compact + hyphen (`12345678-5`), and canonical dotted (`12.345.678-5`, optionally with leading zeros and surrounding whitespace). Non-canonical dot grouping that 3.x tolerated is now rejected, input is capped at 64 characters as a security bound (not a format rule), and errors are a generic `Invalid RUT input` so Chilean ID values are never echoed into logs or traces. `clean()` and `decompose()` remain intentionally permissive for normalization and must not be treated as validation. Review the CHANGELOG before upgrading from 3.x.
+
 Key technical details:
 - **Size**: ~3KB minified, ~1.1KB gzipped
 - **Zero dependencies**: Pure TypeScript implementation
@@ -41,6 +43,7 @@ Key technical details:
 
 - [API Reference](https://rut.arrowsw.com/docs/api-reference): Complete API documentation with all function signatures and TypeScript types
 - [TypeScript Types](https://rut.arrowsw.com/docs/api-reference#typescript-types): Exported types including DecomposedRut, FormatOptions, ValidateOptions, SafeOptions, and VerifierDigit
+- [Changelog](https://github.com/arrowsoftwarehq/rut.ts/blob/main/CHANGELOG.md): Release notes and breaking changes, starting at v4.0.0
 
 ## Optional
 
