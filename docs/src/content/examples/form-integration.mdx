@@ -80,20 +80,20 @@ function MyForm() {
 
 ## Zod Schema Validation
 
+> Requires `zod >= 4`.
+
+### Validate only
+
 ```typescript copy
 import { z } from 'zod'
 import { validate } from 'rut.ts'
 
 const userSchema = z.object({
   name: z.string(),
-  rut: z.string().refine(
-    (val) => validate(val),
-    { message: 'Invalid RUT' }
-  ),
+  rut: z.string().refine(validate, 'RUT inválido'),
   email: z.string().email()
 })
 
-// Usage
 const result = userSchema.safeParse({
   name: 'Juan Pérez',
   rut: '12.345.678-5',
@@ -102,6 +102,31 @@ const result = userSchema.safeParse({
 
 if (result.success) {
   console.log('Valid data:', result.data)
+}
+```
+
+### Validate and normalize for storage
+
+Use `.transform(clean)` to store a consistent, separator-free RUT regardless of what the user typed.
+
+```typescript copy
+import { z } from 'zod'
+import { validate, clean } from 'rut.ts'
+
+const userSchema = z.object({
+  name: z.string(),
+  rut: z.string().refine(validate, 'RUT inválido').transform(clean),
+  email: z.string().email()
+})
+
+const result = userSchema.safeParse({
+  name: 'Juan Pérez',
+  rut: '12.345.678-5',   // user input (any valid format)
+  email: 'juan@example.com'
+})
+
+if (result.success) {
+  console.log(result.data.rut)  // '123456785' — clean, ready for DB
 }
 ```
 
@@ -152,32 +177,27 @@ function MyForm() {
 ```typescript copy
 'use server'
 
-import { validate, clean } from 'rut.ts'
 import { z } from 'zod'
+import { validate, clean } from 'rut.ts'
 
 const formSchema = z.object({
-  rut: z.string().refine((val) => validate(val), 'Invalid RUT')
+  rut: z.string().refine(validate, 'RUT inválido').transform(clean)
 })
 
 export async function createUser(formData: FormData) {
-  const data = {
+  const result = formSchema.safeParse({
     rut: formData.get('rut') as string
-  }
-  
-  // Validate
-  const result = formSchema.safeParse(data)
+  })
+
   if (!result.success) {
     return { error: result.error.flatten() }
   }
-  
-  // Clean for storage
-  const cleanedRut = clean(data.rut)
-  
-  // Save to database
+
+  // result.data.rut is already clean — no manual clean() needed
   await db.users.create({
-    data: { rut: cleanedRut }
+    data: { rut: result.data.rut }
   })
-  
+
   return { success: true }
 }
 ```
