@@ -64,8 +64,10 @@ const isCleanRut = (rut: string): boolean => {
 const parseRutLike = (rut: unknown): DecomposedRut | null => {
   if (!isBoundedString(rut)) return null
 
+  // `isBoundedString` already capped the raw length; trimming can only shrink it,
+  // so the only remaining case to reject is a whitespace-only input.
   const input = rut.trim()
-  if (input.length === 0 || input.length > MAX_RUT_INPUT_LENGTH) return null
+  if (input.length === 0) return null
 
   const hasValidShape =
     patterns.compact.test(input) || patterns.compactWithHyphen.test(input) || patterns.dotted.test(input)

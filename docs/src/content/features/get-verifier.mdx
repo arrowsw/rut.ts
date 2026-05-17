@@ -33,6 +33,10 @@ Returns `VerifierDigit` or `null`:
 - A single character: `'0'` to `'9'` or `'K'` (always uppercase)
 - `null` if invalid (only in safe mode)
 
+> **v4.0.0:** non-string inputs (numbers, `null`, `undefined`, objects) return
+> `null` in safe mode and throw the generic `Invalid RUT input` error otherwise,
+> instead of throwing a `TypeError`.
+
 ## Examples
 
 ### Basic Extraction

@@ -37,6 +37,12 @@ Returns `DecomposedRut` object or `null`:
 - **`body`** - The RUT body (7-8 digits, cleaned)
 - **`verifier`** - The verifier digit ('0'-'9' or 'K')
 
+> **v4.0.0:** `decompose()` is a permissive normalizer built on `clean()` — it
+> does **not** validate the verifier digit, and it accepts some shapes that
+> `validate()` rejects (e.g. `12.345678-5`). Never treat a non-`null` result as
+> "validated"; gate acceptance with `validate()`. Non-string inputs return
+> `null` in safe mode (no `TypeError`).
+
 ## Examples
 
 ### Basic Decomposition

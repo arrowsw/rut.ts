@@ -3,7 +3,10 @@
   <h1>Rut.ts: Handle chilean RUT values with ease using TypeScript.</h1>
 </div>
 
-![Open Bundle](https://deno.bundlejs.com/badge?q=rut.ts@3.4.0)
+![Open Bundle](https://deno.bundlejs.com/badge?q=rut.ts@4.0.0)
+
+> **v4.0.0 is a major, breaking release** focused on production identity hardening.
+> Read the [CHANGELOG](./CHANGELOG.md) before upgrading from `3.x`.
 
 ## What is a RUT?
 
@@ -111,6 +114,30 @@ For security-sensitive identity flows, prefer `validate(input, { strict: true })
 `clean()` remains intentionally permissive for input normalization. It is useful before display or storage, but it does not prove that the verifier digit is correct. `format()` validates the verifier digit in non-incremental mode and returns `null` in safe mode for invalid complete RUTs.
 
 Error messages are generic (`Invalid RUT input`) so invalid Chilean ID values are not echoed into logs, traces, or user-visible exceptions.
+
+### Accepted input formats (the validation contract)
+
+`validate()` and `isRutLike()` accept **only** these shapes (optionally with leading
+zeros and surrounding whitespace, verifier `k`/`K` case-insensitive):
+
+| Shape | Example | Notes |
+|-------|---------|-------|
+| Compact | `123456785` | 7–8 digit body + verifier |
+| Compact + hyphen | `12345678-5` | |
+| Canonical dotted | `12.345.678-5`, `1.234.567-4` | Chilean grouping from the right |
+
+Anything else is rejected, **including non-canonical dot grouping** that older
+versions accepted: `12.345678-5`, `12345.678-5`, `1.2.3.4.5.6.7.8-5`,
+internal spaces (`12 345 678 5`), commas, and any input longer than 64 chars.
+
+> ⚠️ **Migrating a large dataset?** If your upstream emits RUTs in a non-canonical
+> shape, normalize it to one of the three accepted forms **before** calling
+> `validate()`, or run the differential harness against a representative sample
+> first: `npm run test:differential` (see
+> [`tests/differential.test.ts`](./tests/differential.test.ts); it writes
+> `tests/differential-report.md`). `clean()`/`decompose()` stay permissive and
+> will still parse some of those shapes — never treat their output as
+> "validated".
 
 ### When to use incremental mode
 

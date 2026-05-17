@@ -21,8 +21,9 @@ export default async function DocsLayout({ children }) {
   return (
     <Layout
       banner={
-        <Banner storageKey="rut-ts-3.4.0-release">
-          🎉 Rut.ts 3.4.0 is released! Check out Safe Mode and improved API.
+        <Banner storageKey="rut-ts-4.0.0-release">
+          🚨 Rut.ts 4.0.0 is released — a major, breaking release with production
+          identity hardening. Read the changelog before upgrading from 3.x.
         </Banner>
       }
       navbar={navbar}

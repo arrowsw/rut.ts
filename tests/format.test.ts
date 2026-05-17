@@ -80,6 +80,18 @@ describe('format', () => {
       expect(format('12345678901234', { incremental: true })).toBe('12.345.678-9')
     })
 
+    test('Caps to 9 significant chars and drops a trailing K beyond the cap', () => {
+      // A trailing K is preserved only while the value still fits in 9 chars...
+      expect(format('123456785K', { incremental: true })).toBe('12.345.678-5')
+      expect(format('12.345.678-K', { incremental: true })).toBe('12.345.678-K')
+      // ...but once normalization yields >9 significant chars, the cap to
+      // MAX_RUT_LENGTH (9) keeps the first 9 digits and the K is dropped.
+      // This only affects live-typing display; final values must still be
+      // checked with `validate()`.
+      expect(format('1234567890K', { incremental: true })).toBe('12.345.678-9')
+      expect(format('12345678901234K', { incremental: true })).toBe('12.345.678-9')
+    })
+
     test('Handles special characters in incremental mode', () => {
       expect(format('12#34#56#78', { incremental: true })).toBe('1.234.567-8')
     })
