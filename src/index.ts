@@ -23,6 +23,18 @@ const MIN_RUT_LENGTH = 8
 const MAX_RUT_LENGTH = 9
 const MIN_BODY_LENGTH = 7
 const MAX_BODY_LENGTH = 8
+/**
+ * Hard upper bound on accepted input length. This is a SECURITY bound, not a
+ * RUT format rule: a real RUT is ~9 significant chars (and ~12 with dots and a
+ * hyphen, a bit more with leading zeros or surrounding whitespace). The cap
+ * exists so an attacker cannot feed an arbitrarily long string into the
+ * validator and burn CPU — oversized input is rejected *before* any regex
+ * runs (defense in depth alongside the non-backtracking patterns). 64 is an
+ * arbitrary round number, generously above any legitimately-formatted RUT yet
+ * small enough that the bounded patterns can never see an attack string.
+ * Consequence: zero-padded inputs longer than 64 chars are rejected even
+ * though older versions normalized them — see CHANGELOG "Changed (Breaking)".
+ */
 const MAX_RUT_INPUT_LENGTH = 64
 const MIN_GENERATED_BODY = 10000000
 const MAX_GENERATED_BODY = 99999999

@@ -130,6 +130,11 @@ Anything else is rejected, **including non-canonical dot grouping** that older
 versions accepted: `12.345678-5`, `12345.678-5`, `1.2.3.4.5.6.7.8-5`,
 internal spaces (`12 345 678 5`), commas, and any input longer than 64 chars.
 
+> The 64-char limit is a **security bound, not a format rule**. A real RUT is
+> ~9 significant characters (~12 formatted), so the cap never rejects a
+> realistically formatted RUT — it only refuses to *process* implausibly long
+> strings, which neutralizes CPU/ReDoS-style abuse before any parsing runs.
+
 > ⚠️ **Migrating a large dataset?** If your upstream emits RUTs in a non-canonical
 > shape, normalize it to one of the three accepted forms **before** calling
 > `validate()`, or run the differential harness against a representative sample

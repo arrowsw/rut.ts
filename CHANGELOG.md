@@ -35,6 +35,11 @@ major version bump even though several items are security fixes.
   (`MAX_RUT_INPUT_LENGTH = 64`) **before** any regex work, and matched against
   bounded, non-ambiguous shape patterns (compact / compact-with-hyphen /
   canonical-dotted). Adversarial input is now rejected in well under 1 ms.
+  The `64` cap is a security bound, **not** a format rule: a real RUT is ~9
+  significant chars (~12 formatted), so the cap never rejects a realistically
+  formatted RUT — it only refuses to *look at* implausibly long strings. It is
+  deliberately set well above any legitimate input yet small enough that the
+  bounded patterns can never receive an attack string.
 - **`strict` bypass with uppercase `K`.**
   `validate('8.888.888-K', { strict: true })` incorrectly returned `true`
   because the suspicious-pattern regex only matched lowercase `k`. Suspicious
