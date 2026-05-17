@@ -1,87 +1,177 @@
 import { format } from '../src'
 
 describe('format', () => {
-  describe('with throwOnError: false (safe mode)', () => {
-    test('Returns null for invalid RUT instead of throwing', () => {
-      expect(format('123', { throwOnError: false })).toBeNull()
+  describe('standard formatting (non-incremental)', () => {
+    test.each([
+      ['189726317', { dots: true }, '18.972.631-7'],
+      ['189726317', { dots: false }, '18972631-7'],
+      ['123456785', { dots: true }, '12.345.678-5'],
+      ['123456785', { dots: false }, '12345678-5'],
+      ['14625621k', undefined, '14.625.621-K'],
+      ['09068826K', undefined, '9.068.826-K'],
+      ['0012345674', undefined, '1.234.567-4'],
+      ['009068826K', undefined, '9.068.826-K'],
+      ['14.625.621-k', undefined, '14.625.621-K'],
+      ['12#345#678#5', undefined, '12.345.678-5'],
+      [' 123 456 785 ', undefined, '12.345.678-5'],
+      ['12-345-678-5', undefined, '12.345.678-5'],
+      ['18.972.631-7', undefined, '18.972.631-7'], // idempotent on canonical input
+      ['9.068.826-K', undefined, '9.068.826-K'],
+      ['10000130', undefined, '1.000.013-0'], // verifier 0 boundary
+    ])('format(%p, %p) === %p', (rut, options, expected) => {
+      expect(format(rut, options)).toBe(expected)
     })
 
-    test('Returns formatted RUT when valid', () => {
-      expect(format('189726317', { throwOnError: false })).toBe('18.972.631-7')
+    test('format is idempotent on its own output', () => {
+      for (const input of ['18.972.631-7', '14.625.621-K', '9.068.826-K']) {
+        const once = format(input)
+        expect(format(once)).toBe(once)
+      }
     })
 
-    test('Supports other options combined with throwOnError', () => {
-      expect(format('189726317', { dots: false, throwOnError: false })).toBe('18972631-7')
-    })
-
-    test('Returns null for RUTs that are too short', () => {
-      expect(format('1234567', { throwOnError: false })).toBeNull()
-    })
-
-    test('Returns null for RUTs that are too long', () => {
-      expect(format('12345678901', { throwOnError: false })).toBeNull()
-    })
-
-    test('Returns null for RUTs with an incorrect verifier', () => {
-      expect(format('123456789', { throwOnError: false })).toBeNull()
-    })
-
-    test('Returns null for non-string inputs', () => {
-      expect(format(123456785 as any, { throwOnError: false })).toBeNull()
-      expect(format(null as any, { throwOnError: false })).toBeNull()
+    test('returns empty string for empty input (does not throw)', () => {
+      expect(format('')).toBe('')
     })
   })
 
-  describe('incremental mode (progressive formatting)', () => {
-    test('Formats partial RUTs progressively (without hyphen until 8+ chars)', () => {
-      expect(format('1', { incremental: true })).toBe('1')
-      expect(format('12', { incremental: true })).toBe('12')
-      expect(format('123', { incremental: true })).toBe('123')
-      expect(format('1234', { incremental: true })).toBe('1.234')
-      expect(format('12345', { incremental: true })).toBe('12.345')
-      expect(format('123456', { incremental: true })).toBe('123.456')
-      expect(format('1234567', { incremental: true })).toBe('1.234.567')
+  describe('verifier validation (v4 breaking change #1)', () => {
+    // v3 silently "repaired" an incorrect verifier; v4 rejects.
+    test('throws on numeric wrong verifier (default mode)', () => {
+      expect(() => format('123456789')).toThrow('Invalid RUT input')
     })
 
-    test('Adds hyphen when RUT is complete (8+ chars)', () => {
-      // With 8 chars: 7 body + 1 verifier
-      expect(format('12345678', { incremental: true })).toBe('1.234.567-8')
-      // With 9 chars: 8 body + 1 verifier
-      expect(format('123456789', { incremental: true })).toBe('12.345.678-9')
+    test('throws on K-verifier mismatch (default mode)', () => {
+      // body 1234567 has DV 4, not K — v3 used to "repair" this; v4 rejects.
+      expect(() => format('1234567K')).toThrow('Invalid RUT input')
+      // body 12345678 has DV 5, not K.
+      expect(() => format('12345678K')).toThrow('Invalid RUT input')
     })
 
-    test('Formats complete RUTs without dots', () => {
-      expect(format('1234', { incremental: true, dots: false })).toBe('1234')
-      expect(format('12345678', { incremental: true, dots: false })).toBe('1234567-8')
-      expect(format('123456789', { incremental: true, dots: false })).toBe('12345678-9')
+    test('returns null in safe mode for any wrong verifier', () => {
+      expect(format('123456789', { throwOnError: false })).toBeNull()
+      expect(format('1234567K', { throwOnError: false })).toBeNull()
+      expect(format('12345678K', { throwOnError: false })).toBeNull()
     })
 
-    test('Handles RUT with K verifier', () => {
-      expect(format('1234567K', { incremental: true })).toBe('1.234.567-K')
-      expect(format('1234567k', { incremental: true })).toBe('1.234.567-K')
-      expect(format('12345678K', { incremental: true })).toBe('12.345.678-K')
+    test('does not echo the input in the error message (PII protection)', () => {
+      expect(() => format('123456789')).not.toThrow(/123/)
+    })
+  })
+
+  describe('safe mode (throwOnError: false)', () => {
+    test.each([
+      ['', '', 'empty string short-circuits to ""'],
+      ['189726317', '18.972.631-7', 'valid RUT formats normally'],
+    ])('format(%p, { throwOnError: false }) === %p (%s)', (input, expected, _label) => {
+      expect(format(input, { throwOnError: false })).toBe(expected)
     })
 
-    test('Returns empty string for empty input', () => {
-      expect(format('', { incremental: true })).toBe('')
+    test('supports throwOnError combined with other options', () => {
+      expect(format('189726317', { dots: false, throwOnError: false })).toBe('18972631-7')
     })
 
-    test('Cleans input while formatting incrementally', () => {
-      expect(format('12.345', { incremental: true })).toBe('12.345')
-      expect(format('12-345-678', { incremental: true })).toBe('1.234.567-8')
+    test.each([
+      ['123', 'too short'],
+      ['1234567', '7 chars'],
+      ['12345678901', '11 chars'],
+      ['123456789', 'wrong verifier'],
+      ['K234567-8', 'K at the start'],
+      ['1234K678-9', 'K in the middle'],
+    ])('returns null for invalid input: %p (%s)', (input, _label) => {
+      expect(format(input, { throwOnError: false })).toBeNull()
     })
 
-    test('Removes leading zeros in incremental mode', () => {
-      expect(format('00001234', { incremental: true })).toBe('1.234')
-      expect(format('00012345678', { incremental: true })).toBe('1.234.567-8')
+    test.each([
+      [123456785, 'number'],
+      [null, 'null'],
+      [undefined, 'undefined'],
+      [{}, 'object'],
+      [Symbol('rut'), 'symbol'],
+    ])('returns null for non-string input: %p (%s)', (value, _label) => {
+      expect(format(value as unknown as string, { throwOnError: false })).toBeNull()
+    })
+  })
+
+  describe('error mode (default)', () => {
+    test.each([['1234567'], ['123'], ['12345678901'], ['K234567-8'], ['1234K678-9']])(
+      'throws for invalid input: %p',
+      (input) => {
+        expect(() => format(input)).toThrow('Invalid RUT input')
+      },
+    )
+  })
+
+  describe('security — MAX_RUT_INPUT_LENGTH (64) cap', () => {
+    test('accepts input padded to exactly 64 chars in non-incremental mode', () => {
+      const padded = '0'.repeat(55) + '123456785' // length 64, valid DV
+      expect(padded.length).toBe(64)
+      expect(format(padded)).toBe('12.345.678-5')
     })
 
-    test('Caps very long inputs to the maximum RUT length', () => {
+    test('rejects input at 65 chars (over the cap)', () => {
+      const overCap = '0'.repeat(56) + '123456785'
+      expect(overCap.length).toBe(65)
+      expect(format(overCap, { throwOnError: false })).toBeNull()
+      expect(() => format(overCap)).toThrow('Invalid RUT input')
+    })
+  })
+
+  describe('incremental mode — progressive formatting', () => {
+    test.each([
+      ['1', '1'],
+      ['12', '12'],
+      ['123', '123'],
+      ['1234', '1.234'],
+      ['12345', '12.345'],
+      ['123456', '123.456'],
+      ['1234567', '1.234.567'],
+      // hyphen appears at 8+ chars (complete)
+      ['12345678', '1.234.567-8'],
+      ['123456789', '12.345.678-9'],
+    ])('format(%p, { incremental: true }) === %p (length sweep 1..9)', (input, expected) => {
+      expect(format(input, { incremental: true })).toBe(expected)
+    })
+
+    test.each([
+      ['1234', '1234'],
+      ['12345678', '1234567-8'],
+      ['123456789', '12345678-9'],
+    ])('with dots:false, format(%p, incremental) === %p', (input, expected) => {
+      expect(format(input, { incremental: true, dots: false })).toBe(expected)
+    })
+
+    test.each([
+      ['1234567K', '1.234.567-K'],
+      ['1234567k', '1.234.567-K'],
+      ['12345678K', '12.345.678-K'],
+    ])('K verifier (case-insensitive) in incremental: %p → %p', (input, expected) => {
+      expect(format(input, { incremental: true })).toBe(expected)
+    })
+
+    test.each([
+      ['', ''],
+      ['   ', ''], // whitespace-only normalizes to empty
+      ['00000000', ''], // all zeros strip to empty
+      ['00001234', '1.234'],
+      ['00012345678', '1.234.567-8'],
+    ])('strips leading zeros / empty edge cases: %p → %p', (input, expected) => {
+      expect(format(input, { incremental: true })).toBe(expected)
+    })
+
+    test.each([
+      ['12.345', '12.345'],
+      ['12-345-678', '1.234.567-8'],
+      ['12#34#56#78', '1.234.567-8'],
+    ])('cleans input while formatting incrementally: %p → %p', (input, expected) => {
+      expect(format(input, { incremental: true })).toBe(expected)
+    })
+
+    test('caps very long inputs to the maximum RUT length (v4 breaking change #7)', () => {
       expect(format('12345678901234', { incremental: true })).toBe('12.345.678-9')
     })
 
-    test('Caps to 9 significant chars and drops a trailing K beyond the cap', () => {
-      // A trailing K is preserved only while the value still fits in 9 chars...
+    test('caps to 9 significant chars and drops a trailing K beyond the cap', () => {
+      // A trailing K is preserved only while the value still fits in 9 chars.
       expect(format('123456785K', { incremental: true })).toBe('12.345.678-5')
       expect(format('12.345.678-K', { incremental: true })).toBe('12.345.678-K')
       // ...but once normalization yields >9 significant chars, the cap to
@@ -92,91 +182,20 @@ describe('format', () => {
       expect(format('12345678901234K', { incremental: true })).toBe('12.345.678-9')
     })
 
-    test('Handles special characters in incremental mode', () => {
-      expect(format('12#34#56#78', { incremental: true })).toBe('1.234.567-8')
-    })
-  })
-
-  describe('standard formatting', () => {
-    test('should correctly format RUTs with or without dots', () => {
-      expect(format('189726317')).toBe('18.972.631-7')
-      expect(format('189726317', { dots: false })).toBe('18972631-7')
+    test('silently drops a K that is not the trailing character', () => {
+      // Locks in observed behavior so a refactor cannot silently regress it.
+      // These inputs would never come from a normal typing flow, but a paste
+      // could produce them — the renderer keeps only digits + trailing K.
+      expect(format('K12345678', { incremental: true })).toBe('1.234.567-8')
+      expect(format('1234K5678', { incremental: true })).toBe('1.234.567-8')
+      expect(format('KK345678', { incremental: true })).toBe('345.678')
     })
 
-    test('Correctly formats with dots and hyphen', () => {
-      expect(format('123456785')).toBe('12.345.678-5')
-    })
-
-    test('Correctly formats without dots', () => {
-      expect(format('123456785', { dots: false })).toBe('12345678-5')
-    })
-
-    test('Returns empty string if input is empty', () => {
-      expect(format('')).toBe('')
-    })
-
-    test('Correctly handles RUTs with K as verification digit', () => {
-      expect(format('14625621k')).toBe('14.625.621-K')
-      expect(format('09068826K')).toBe('9.068.826-K')
-    })
-
-    test('Correctly formats RUTs with leading zeros', () => {
-      expect(format('0012345674')).toBe('1.234.567-4')
-      expect(format('009068826K')).toBe('9.068.826-K')
-    })
-
-    test('Correctly handles RUTs with non-numeric characters', () => {
-      expect(format('14.625.621-k')).toBe('14.625.621-K')
-      expect(format('12#345#678#5')).toBe('12.345.678-5')
-    })
-
-    test('Correctly handles RUTs with white spaces', () => {
-      expect(format(' 123 456 785 ')).toBe('12.345.678-5')
-    })
-
-    test('Throws for RUTs with an incorrect verifier', () => {
-      expect(() => format('123456789')).toThrow()
-    })
-  })
-
-  describe('edge cases', () => {
-    test('Formats 8-character RUTs (7 body + 1 verifier)', () => {
-      expect(format('09068826K')).toBe('9.068.826-K')
-      expect(format('12345674')).toBe('1.234.567-4')
-    })
-
-    test('Formats 9-character RUTs (8 body + 1 verifier)', () => {
-      expect(format('189726317')).toBe('18.972.631-7')
-      expect(format('123456785')).toBe('12.345.678-5')
-    })
-
-    test('Formats with verifier 0', () => {
-      expect(format('10000130')).toBe('1.000.013-0')
-    })
-
-    test('Already formatted RUTs remain unchanged', () => {
-      expect(format('18.972.631-7')).toBe('18.972.631-7')
-      expect(format('9.068.826-K')).toBe('9.068.826-K')
-    })
-
-    test('Handles RUT with only hyphens as separators', () => {
-      expect(format('12-345-678-5')).toBe('12.345.678-5')
-    })
-  })
-
-  describe('error cases', () => {
-    test('Throws error for too short RUT', () => {
-      expect(() => format('1234567')).toThrow()
-      expect(() => format('123')).toThrow()
-    })
-
-    test('Throws error for too long RUT', () => {
-      expect(() => format('12345678901')).toThrow()
-    })
-
-    test('Throws error for RUT with K not at the end', () => {
-      expect(() => format('K234567-8')).toThrow()
-      expect(() => format('1234K678-9')).toThrow()
+    test('incremental mode never throws regardless of throwOnError', () => {
+      // Documented contract: throwOnError is ignored in incremental mode.
+      expect(() => format('@@@@', { incremental: true, throwOnError: true })).not.toThrow()
+      expect(() => format('00000000', { incremental: true, throwOnError: true })).not.toThrow()
+      expect(() => format('K@K@K@', { incremental: true, throwOnError: true })).not.toThrow()
     })
   })
 })

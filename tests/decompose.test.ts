@@ -1,107 +1,66 @@
-import { decompose } from '../src'
+import { clean, decompose, getBody, getVerifier } from '../src'
 
-describe('decompose function', () => {
-  describe('basic decomposition', () => {
-    test('should return the body and verifier of a RUT', () => {
-      expect(decompose('18.972.631-7')).toEqual({ body: '18972631', verifier: '7' })
-    })
-
-    test('decomposes RUT with K verifier', () => {
-      expect(decompose('9.068.826-K')).toEqual({ body: '9068826', verifier: 'K' })
-      expect(decompose('14.625.621-k')).toEqual({ body: '14625621', verifier: 'K' })
-    })
-
-    test('decomposes RUT without dots', () => {
-      expect(decompose('18972631-7')).toEqual({ body: '18972631', verifier: '7' })
-      expect(decompose('9068826K')).toEqual({ body: '9068826', verifier: 'K' })
-    })
-
-    test('decomposes RUT without hyphen', () => {
-      expect(decompose('189726317')).toEqual({ body: '18972631', verifier: '7' })
-      expect(decompose('12345678K')).toEqual({ body: '12345678', verifier: 'K' })
-    })
-  })
-
-  describe('various formats', () => {
-    test('handles RUT with leading zeros', () => {
-      expect(decompose('009.068.826-K')).toEqual({ body: '9068826', verifier: 'K' })
-      expect(decompose('0018972631-7')).toEqual({ body: '18972631', verifier: '7' })
-    })
-
-    test('handles RUT with extra characters', () => {
-      expect(decompose('  18.972.631-7  ')).toEqual({ body: '18972631', verifier: '7' })
-      expect(decompose('(18.972.631-7)')).toEqual({ body: '18972631', verifier: '7' })
+/**
+ * `decompose` is a thin composition: `{ body: getBody(rut), verifier: getVerifier(rut) }`.
+ * Heavy parsing edge cases live in `clean.test.ts` / `getBody.test.ts` /
+ * `getVerifier.test.ts`. This file covers only what is unique to `decompose`:
+ *
+ * 1. the returned object shape
+ * 2. safe-mode null contract
+ * 3. generic error message (no PII echoing)
+ * 4. consistency with the underlying getBody / getVerifier wrappers
+ */
+describe('decompose', () => {
+  describe('returned shape', () => {
+    test.each([
+      ['18.972.631-7', { body: '18972631', verifier: '7' }],
+      ['9.068.826-K', { body: '9068826', verifier: 'K' }],
+      ['14.625.621-k', { body: '14625621', verifier: 'K' }],
+      ['18.264.159-0', { body: '18264159', verifier: '0' }],
+    ])('decompose(%p) === %j', (rut, expected) => {
+      expect(decompose(rut)).toEqual(expected)
     })
   })
 
-  describe('verifier types', () => {
-    test('decomposes RUT with numeric verifier', () => {
-      expect(decompose('18.972.631-7')).toEqual({ body: '18972631', verifier: '7' })
-      expect(decompose('18.264.159-0')).toEqual({ body: '18264159', verifier: '0' })
+  describe('safe mode (throwOnError: false)', () => {
+    test.each([
+      ['', 'empty'],
+      ['123', 'too short'],
+      ['invalid', 'non-numeric'],
+    ])('returns null for invalid input: %p (%s)', (input, _label) => {
+      expect(decompose(input, { throwOnError: false })).toBeNull()
     })
 
-    test('decomposes RUT with K verifier (uppercase and lowercase)', () => {
-      expect(decompose('9.068.826-K')).toEqual({ body: '9068826', verifier: 'K' })
-      expect(decompose('9.068.826-k')).toEqual({ body: '9068826', verifier: 'K' })
-    })
-  })
-
-  describe('length variations', () => {
-    test('decomposes 8-digit RUTs', () => {
-      expect(decompose('9.068.826-K')).toEqual({ body: '9068826', verifier: 'K' })
+    test.each([[123456789], [null], [undefined], [{}]])('returns null for non-string input: %p', (value) => {
+      expect(decompose(value as unknown as string, { throwOnError: false })).toBeNull()
     })
 
-    test('decomposes 9-digit RUTs', () => {
-      expect(decompose('18.972.631-7')).toEqual({ body: '18972631', verifier: '7' })
-    })
-  })
-
-  describe('error cases', () => {
-    test('throws error for invalid RUT', () => {
-      expect(() => decompose('123')).toThrow()
-      expect(() => decompose('invalid')).toThrow()
-      expect(() => decompose('')).toThrow()
-    })
-
-    test('throws error for too short RUT', () => {
-      expect(() => decompose('1234567')).toThrow()
-      expect(() => decompose('1.234.567')).toThrow()
-    })
-
-    test('throws error for too long RUT', () => {
-      expect(() => decompose('12345678901')).toThrow()
-    })
-  })
-
-  describe('with throwOnError: false (safe mode)', () => {
-    test('returns null for invalid RUT instead of throwing', () => {
-      expect(decompose('123', { throwOnError: false })).toBeNull()
-      expect(decompose('', { throwOnError: false })).toBeNull()
-      expect(decompose('invalid', { throwOnError: false })).toBeNull()
-    })
-
-    test('returns null for non-string inputs', () => {
-      expect(decompose(123456789 as any, { throwOnError: false })).toBeNull()
-      expect(decompose(null as any, { throwOnError: false })).toBeNull()
-    })
-
-    test('returns decomposed RUT when valid', () => {
+    test('returns the decomposed shape for valid input', () => {
       expect(decompose('18.972.631-7', { throwOnError: false })).toEqual({ body: '18972631', verifier: '7' })
-      expect(decompose('9.068.826-K', { throwOnError: false })).toEqual({ body: '9068826', verifier: 'K' })
     })
   })
 
-  describe('edge cases', () => {
-    test('preserves verifier 0', () => {
-      expect(decompose('18.264.159-0')).toEqual({ body: '18264159', verifier: '0' })
+  describe('error mode (default)', () => {
+    test('throws a generic error with no PII echoed', () => {
+      expect(() => decompose('not-a-rut')).toThrow('Invalid RUT input')
+      expect(() => decompose('not-a-rut')).not.toThrow(/not-a-rut/)
     })
 
-    test('handles minimum valid RUT', () => {
-      expect(decompose('1.000.000-2')).toEqual({ body: '1000000', verifier: '2' })
+    test.each([[''], ['123'], ['12345678901']])('throws for invalid input: %p', (input) => {
+      expect(() => decompose(input)).toThrow('Invalid RUT input')
     })
+  })
 
-    test('handles maximum valid RUT', () => {
-      expect(decompose('99.999.999-6')).toEqual({ body: '99999999', verifier: '6' })
-    })
+  describe('consistency with getBody / getVerifier / clean (property)', () => {
+    // If `decompose` ever drifts from its composition, this catches it.
+    test.each(['18.972.631-7', '9.068.826-K', '14.625.621-k', '  18.972.631-7  ', '009.068.826-K'])(
+      'decompose(%p).body === getBody(%p) and verifier === getVerifier(%p)',
+      (rut) => {
+        const d = decompose(rut)
+        expect(d.body).toBe(getBody(rut))
+        expect(d.verifier).toBe(getVerifier(rut))
+        expect(d.body + d.verifier).toBe(clean(rut))
+      },
+    )
   })
 })

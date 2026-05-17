@@ -4,7 +4,7 @@ Rut.ts has comprehensive test coverage to ensure reliability.
 
 ## Test Suite
 
-The library is tested using [Jest](https://jestjs.io/) with 182 test cases covering all functions and edge cases.
+The library is tested using [Jest](https://jestjs.io/) with 394 test cases covering all functions and edge cases.
 
 ```bash
 npm test
@@ -12,8 +12,8 @@ npm test
 
 ## Coverage Statistics
 
-- **9 Test suites** (one per main function)
-- **182 Test cases** (comprehensive coverage)
+- **12 Test suites** (one per public function, plus differential, bundle smoke, and type-level suites)
+- **394 Test cases** (comprehensive coverage)
 - **100% Pass rate** ✅
 
 ## What's Tested
@@ -65,14 +65,18 @@ Tests are organized by function:
 
 ```
 tests/
-├── validate.test.ts      (25 tests)
-├── format.test.ts        (30 tests)
-├── clean.test.ts         (22 tests)
-├── getVerifier.test.ts   (22 tests)
-├── calculateVerifier.test.ts (19 tests)
-├── decompose.test.ts     (18 tests)
-├── getBody.test.ts       (18 tests)
-└── generate.test.ts      (12 tests)
+├── validate.test.ts            (93 tests)
+├── format.test.ts              (69 tests)
+├── clean.test.ts               (62 tests)
+├── calculateVerifier.test.ts   (47 tests)
+├── getVerifier.test.ts         (41 tests)
+├── getBody.test.ts             (29 tests)
+├── decompose.test.ts           (21 tests)
+├── generate.test.ts             (9 tests)
+├── getInvalidRutError.test.ts   (9 tests)
+├── differential.test.ts         (9 tests, opt-in via RUN_DIFFERENTIAL=1)
+├── dist.smoke.test.ts           (4 tests, runs against the built bundle)
+└── types.test.ts                (1 test, compile-time type assertions)
 ```
 
 Each test file includes:

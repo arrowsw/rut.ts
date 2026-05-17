@@ -1,118 +1,111 @@
-import { calculateVerifier } from '../src'
+import { calculateVerifier, decompose, format, generate, getBody, getVerifier, validate } from '../src'
 
 describe('calculateVerifier', () => {
-  describe('correct verifier calculations', () => {
-    test('should return the correct verifier digit for a given RUT body', () => {
-      expect(calculateVerifier('18264958')).toBe('9')
-      expect(calculateVerifier('18722009')).toBe('2')
-      expect(calculateVerifier('12345678')).toBe('5')
-    })
-
-    test('correctly calculates when verifier is K', () => {
-      expect(calculateVerifier('24657622')).toBe('K')
-      expect(calculateVerifier('14625621')).toBe('K')
-    })
-
-    test('correctly calculates verifier for 8-digit bodies', () => {
-      expect(calculateVerifier('18264958')).toBe('9')
-      expect(calculateVerifier('10000000')).toBe('8')
-      expect(calculateVerifier('18972631')).toBe('7')
-    })
-
-    test('handles formatted input (dots and hyphens are removed)', () => {
-      expect(calculateVerifier('18.264.958')).toBe('9')
-      expect(calculateVerifier('18-264-958')).toBe('9')
-    })
-
-    test('handles leading zeros (that result in 8-digit body after cleaning)', () => {
-      expect(calculateVerifier('018972631')).toBe('7') // Becomes 18972631 (8 digits)
-      expect(calculateVerifier('0018264958')).toBe('9') // Becomes 18264958 (8 digits)
+  describe('full Modulo-11 image (every possible output)', () => {
+    // Smallest 8-digit body producing each of the 11 possible verifier outputs.
+    // Computed from the canonical algorithm and pinned here so any future
+    // refactor of the Modulo-11 hot path is caught immediately.
+    test.each([
+      ['10000004', '0'],
+      ['10000009', '1'],
+      ['10000003', '2'],
+      ['10000008', '3'],
+      ['10000002', '4'],
+      ['10000007', '5'],
+      ['10000001', '6'],
+      ['10000006', '7'],
+      ['10000000', '8'],
+      ['10000005', '9'],
+      ['10000013', 'K'],
+    ])('calculateVerifier(%p) === %p', (body, expected) => {
+      expect(calculateVerifier(body)).toBe(expected)
     })
   })
 
-  describe('verifier digit range', () => {
-    test('verifier can be any digit from 0-9', () => {
-      expect(calculateVerifier('11111111')).toBe('1')
-      expect(calculateVerifier('18722009')).toBe('2')
-      expect(calculateVerifier('14745562')).toBe('3')
-      expect(calculateVerifier('23579222')).toBe('2')
-      expect(calculateVerifier('12345678')).toBe('5')
-    })
-
-    test('verifier can be K (10)', () => {
-      expect(calculateVerifier('24657622')).toBe('K')
-      expect(calculateVerifier('14625621')).toBe('K')
-    })
-  })
-
-  describe('error cases', () => {
-    test('throws error with empty string', () => {
-      expect(() => calculateVerifier('')).toThrow()
-    })
-
-    test('throws error with too short body', () => {
-      expect(() => calculateVerifier('123')).toThrow()
-      expect(() => calculateVerifier('12345')).toThrow()
-    })
-
-    test('throws error with too long body', () => {
-      expect(() => calculateVerifier('12345678901')).toThrow()
-    })
-
-    test('throws error with non-numeric characters', () => {
-      expect(() => calculateVerifier('abcdefgh')).toThrow()
-      expect(() => calculateVerifier('12abc345678')).toThrow()
-      expect(() => calculateVerifier('12#345#678')).toThrow()
+  describe('input normalization', () => {
+    test.each([
+      ['18264958', '9', '8-digit body'],
+      ['18722009', '2', '8-digit body'],
+      ['12345678', '5', '8-digit body'],
+      ['18972631', '7', '8-digit body'],
+      ['24657622', 'K', '8-digit body, K output'],
+      ['14625621', 'K', '8-digit body, K output'],
+      ['18.264.958', '9', 'formatted with dots'],
+      ['18-264-958', '9', 'with extra hyphens'],
+      ['018972631', '7', 'leading-zero strip → 8-digit'],
+      ['0018264958', '9', 'leading-zero strip → 8-digit'],
+      ['10000000', '8', 'minimum 8-digit body'],
+      ['99999999', '9', 'maximum 8-digit body'],
+    ])('calculateVerifier(%p) === %p (%s)', (body, expected, _label) => {
+      expect(calculateVerifier(body)).toBe(expected)
     })
   })
 
-  describe('with throwOnError: false (safe mode)', () => {
-    test('returns null for empty string instead of throwing', () => {
-      expect(calculateVerifier('', { throwOnError: false })).toBeNull()
-    })
+  describe('error mode', () => {
+    test.each([[''], ['123'], ['12345'], ['12345678901'], ['abcdefgh'], ['12abc345678'], ['12#345#678']])(
+      'throws for invalid input: %p',
+      (input) => {
+        expect(() => calculateVerifier(input)).toThrow('Invalid RUT input')
+      },
+    )
 
-    test('returns null for invalid RUT body', () => {
-      expect(calculateVerifier('123', { throwOnError: false })).toBeNull()
-      expect(calculateVerifier('12345', { throwOnError: false })).toBeNull()
-      expect(calculateVerifier('12345678901', { throwOnError: false })).toBeNull()
-      expect(calculateVerifier('12abc345678', { throwOnError: false })).toBeNull()
-    })
-
-    test('returns null for non-string inputs', () => {
-      expect(calculateVerifier(12345678 as any, { throwOnError: false })).toBeNull()
-      expect(calculateVerifier(null as any, { throwOnError: false })).toBeNull()
-    })
-
-    test('returns verifier when valid', () => {
-      expect(calculateVerifier('12345678', { throwOnError: false })).toBe('5')
-      expect(calculateVerifier('24657622', { throwOnError: false })).toBe('K')
-    })
-
-    test('handles formatted input in safe mode', () => {
-      expect(calculateVerifier('18.264.958', { throwOnError: false })).toBe('9')
+    test('throws when leading-zero strip leaves a body that is too short', () => {
+      expect(() => calculateVerifier('0000000')).toThrow('Invalid RUT input')
+      expect(() => calculateVerifier('000000')).toThrow('Invalid RUT input')
     })
   })
 
-  describe('edge cases', () => {
-    test('handles leading zeros (resulting in 8-digit body)', () => {
-      expect(calculateVerifier('018972631')).toBe('7')
-      expect(calculateVerifier('0018264958')).toBe('9')
+  describe('safe mode (throwOnError: false)', () => {
+    test.each([
+      [''],
+      ['123'],
+      ['12345'],
+      ['12345678901'],
+      ['12abc345678'],
+      ['0000000'], // leading-zero strip leaves nothing — covers the body-length floor
+    ])('returns null for invalid input: %p', (input) => {
+      expect(calculateVerifier(input, { throwOnError: false })).toBeNull()
     })
 
-    test('handles minimum valid body (8 digits)', () => {
-      expect(calculateVerifier('10000000')).toBe('8')
-      expect(calculateVerifier('10000002')).toBe('4')
+    test.each([[12345678], [null], [undefined], [{}], [Symbol('rut')]])(
+      'returns null for non-string input: %p',
+      (value) => {
+        expect(calculateVerifier(value as unknown as string, { throwOnError: false })).toBeNull()
+      },
+    )
+
+    test.each([
+      ['12345678', '5'],
+      ['24657622', 'K'],
+      ['18.264.958', '9'],
+    ])('returns verifier for valid input: %p → %p', (body, expected) => {
+      expect(calculateVerifier(body, { throwOnError: false })).toBe(expected)
+    })
+  })
+
+  describe('cross-function consistency (property)', () => {
+    // Strongest oracle: the math of `calculateVerifier` must agree with the
+    // verifier carried inside any RUT that `generate()` produced. This catches
+    // any divergence between the hot-path Modulo-11 sum and the rest of the
+    // library without needing to enumerate inputs by hand.
+    test('agrees with decompose+validate on 200 generated RUTs', () => {
+      for (let i = 0; i < 200; i++) {
+        const rut = generate()
+        const { body, verifier } = decompose(rut)
+        expect(calculateVerifier(body)).toBe(verifier)
+        // Also verify that a body+computed-verifier still passes validate.
+        expect(validate(body + calculateVerifier(body))).toBe(true)
+      }
     })
 
-    test('handles maximum valid body (8 digits)', () => {
-      expect(calculateVerifier('99999999')).toBe('9')
-    })
-
-    test('verifier algorithm is deterministic', () => {
-      const body = '12345678'
-      const verifier1 = calculateVerifier(body)
-      const verifier2 = calculateVerifier(body)
-      expect(verifier1).toBe(verifier2)
+    test('agrees with getBody + getVerifier on canonical inputs', () => {
+      for (const rut of ['18.972.631-7', '9.068.826-K', '14.625.621-k', '99.999.999-9']) {
+        const body = getBody(rut)
+        const verifier = getVerifier(rut)
+        expect(calculateVerifier(body)).toBe(verifier)
+        // And the round-trip through format produces canonical form.
+        expect(format(body + verifier)).toBe(format(rut))
+      }
     })
   })
 })
