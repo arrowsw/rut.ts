@@ -1,6 +1,6 @@
 {
   "name": "rut.ts",
-  "version": "3.4.0",
+  "version": "4.0.0",
   "type": "module",
   "description": "Handle chilean RUT values with ease.",
   "author": "arrowsw",
@@ -28,6 +28,7 @@
     "lint": "eslint \"{**/*,*}.{js,ts,jsx,tsx}\"",
     "prettier": "prettier --write \"{src,tests,example/src}/**/*.{js,ts,jsx,tsx}\"",
     "test": "jest --config jest.config.cjs",
+    "test:differential": "RUN_DIFFERENTIAL=1 jest --config jest.config.cjs tests/differential.test.ts",
     "prepare": "npm run build",
     "prepublishOnly": "npm run test && npm run prettier && npm run lint",
     "minify:esm": "terser dist/esm/index.js -o dist/esm/index.min.js -c -m",

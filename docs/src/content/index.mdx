@@ -4,8 +4,12 @@ import { Cards, Callout, Tabs } from 'nextra/components'
 
 Handle Chilean RUT values with ease using TypeScript.
 
-<Callout type="info" emoji="✨">
-  **Version 3.4.0 is out!** New safe mode, improved API, and better TypeScript types.
+<Callout type="warning" emoji="🚨">
+  **Version 4.0.0 is out — this is a major, breaking release.** Production identity
+  hardening: bounded input parsing (ReDoS-safe), strict format validation, verifier
+  checking in `format()`, generic error messages, and a crypto-backed `generate()`.
+  Review the [changelog](https://github.com/arrowsw/rut.ts/blob/canary/CHANGELOG.md)
+  before upgrading from `3.x`.
 </Callout>
 
 ## What is a RUT?

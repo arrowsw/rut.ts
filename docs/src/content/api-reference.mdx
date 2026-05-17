@@ -6,12 +6,12 @@ Complete API documentation for all rut.ts functions.
 
 ### Validation
 
-- [`validate(rut, options?)`](/docs/features/validate) - Validates a RUT string
+- [`validate(rut, options?)`](/docs/features/validate) - Validates a bounded RUT string and verifier digit
 
 ### Formatting & Cleaning
 
-- [`format(rut, options?)`](/docs/features/format) - Formats a RUT string
-- [`clean(rut, options?)`](/docs/features/clean) - Cleans a RUT string
+- [`format(rut, options?)`](/docs/features/format) - Formats a valid RUT string
+- [`clean(rut, options?)`](/docs/features/clean) - Permissively normalizes a RUT string
 
 ### Decomposition
 
@@ -21,31 +21,25 @@ Complete API documentation for all rut.ts functions.
 
 ### Generation & Calculation
 
-- [`generate()`](/docs/features/generate) - Generates random valid RUT
+- [`generate()`](/docs/features/generate) - Generates random valid test RUTs
 - [`calculateVerifier(body, options?)`](/docs/features/calculate-verifier) - Calculates verifier digit
 
 ### Utilities
 
-- [`isRutLike(rut)`](/docs/features/is-rut-like) - Quick format check
+- [`isRutLike(rut)`](/docs/features/is-rut-like) - Quick bounded format check
 
 ## TypeScript Types
 
 ```typescript copy
-import type { 
-  DecomposedRut,
-  FormatOptions,
-  SafeOptions,
-  ValidateOptions,
-  VerifierDigit
-} from 'rut.ts'
+import type { DecomposedRut, FormatOptions, SafeOptions, ValidateOptions, VerifierDigit } from 'rut.ts'
 ```
 
 ### DecomposedRut
 
 ```typescript copy
 type DecomposedRut = {
-  body: string      // RUT body (7-8 digits)
-  verifier: string  // Verifier digit ('0'-'9' or 'K')
+  body: string // RUT body (7-8 digits)
+  verifier: string // Verifier digit ('0'-'9' or 'K')
 }
 ```
 
@@ -53,9 +47,9 @@ type DecomposedRut = {
 
 ```typescript copy
 type FormatOptions = {
-  incremental?: boolean   // Progressive formatting mode
-  dots?: boolean          // Include dot separators (default: true)
-  throwOnError?: boolean  // Return null on error (default: true)
+  incremental?: boolean // Progressive formatting mode
+  dots?: boolean // Include dot separators (default: true)
+  throwOnError?: boolean // Return null on error (default: true)
 }
 ```
 
@@ -63,7 +57,7 @@ type FormatOptions = {
 
 ```typescript copy
 type SafeOptions = {
-  throwOnError?: boolean  // Return null on error (default: true)
+  throwOnError?: boolean // Return null on error (default: true)
 }
 ```
 
@@ -71,32 +65,29 @@ type SafeOptions = {
 
 ```typescript copy
 type ValidateOptions = {
-  strict?: boolean  // Reject suspicious patterns (default: false)
+  strict?: boolean // Reject suspicious patterns (default: false)
 }
 ```
 
 ### VerifierDigit
 
 ```typescript copy
-type VerifierDigit = 
-  | '0' | '1' | '2' | '3' | '4' 
-  | '5' | '6' | '7' | '8' | '9' 
-  | 'K'
+type VerifierDigit = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | 'K'
 ```
 
 ## Quick Reference
 
-| Function | Input | Output | Safe Mode | Purpose |
-|----------|-------|--------|-----------|---------|
-| `validate()` | RUT string | boolean | N/A | Check validity |
-| `format()` | RUT string | Formatted string | ✅ | Add formatting |
-| `clean()` | RUT string | Clean string | ✅ | Remove formatting |
-| `decompose()` | RUT string | `{ body, verifier }` | ✅ | Split RUT |
-| `getBody()` | RUT string | Body string | ✅ | Extract body |
-| `getVerifier()` | RUT string | Verifier char | ✅ | Extract verifier |
-| `calculateVerifier()` | Body string | Verifier char | ✅ | Calculate verifier |
-| `generate()` | None | Valid RUT | N/A | Generate random |
-| `isRutLike()` | String | boolean | N/A | Format check |
+| Function              | Input       | Output               | Safe Mode | Purpose                                              |
+| --------------------- | ----------- | -------------------- | --------- | ---------------------------------------------------- |
+| `validate()`          | RUT string  | boolean              | N/A       | Check validity                                       |
+| `format()`            | RUT string  | Formatted string     | ✅        | Add formatting and validate verifier in default mode |
+| `clean()`             | RUT string  | Clean string         | ✅        | Normalize shape without verifier validation          |
+| `decompose()`         | RUT string  | `{ body, verifier }` | ✅        | Split RUT                                            |
+| `getBody()`           | RUT string  | Body string          | ✅        | Extract body                                         |
+| `getVerifier()`       | RUT string  | Verifier char        | ✅        | Extract verifier                                     |
+| `calculateVerifier()` | Body string | Verifier char        | ✅        | Calculate verifier                                   |
+| `generate()`          | None        | Valid RUT            | N/A       | Generate random                                      |
+| `isRutLike()`         | unknown     | boolean              | N/A       | Bounded format check                                 |
 
 ## Common Patterns
 
@@ -108,14 +99,16 @@ import { isRutLike, validate, clean } from 'rut.ts'
 function validateRutPipeline(input: unknown) {
   // Step 1: Type check
   if (typeof input !== 'string') return false
-  
+
   // Step 2: Format check (fast)
   if (!isRutLike(input)) return false
-  
+
   // Step 3: Full validation (slower)
   return validate(input)
 }
 ```
+
+For production identity flows, use `validate(input, { strict: true })` as the final acceptance gate. `clean()` is useful for normalization, but it does not prove that the verifier digit is correct.
 
 ### Safe Processing
 
@@ -125,10 +118,10 @@ import { clean, decompose, calculateVerifier } from 'rut.ts'
 function safeProcessRut(input: string) {
   const cleaned = clean(input, { throwOnError: false })
   if (!cleaned) return null
-  
+
   const parts = decompose(cleaned, { throwOnError: false })
   if (!parts) return null
-  
+
   return parts
 }
 ```
@@ -141,10 +134,10 @@ import { format, validate } from 'rut.ts'
 function formatAndValidate(input: string) {
   const formatted = format(input, { throwOnError: false })
   if (!formatted) return { valid: false, formatted: null }
-  
+
   return {
     valid: validate(formatted),
-    formatted
+    formatted,
   }
 }
 ```

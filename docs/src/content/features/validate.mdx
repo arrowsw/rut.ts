@@ -1,6 +1,6 @@
 # validate()
 
-Validates a given RUT string, checking both format and verifier digit.
+Validates a given RUT string, checking bounded input shape and verifier digit.
 
 ## Basic Usage
 
@@ -9,7 +9,7 @@ import { validate } from 'rut.ts'
 
 validate('12.345.678-5') // true
 validate('12.345.678-0') // false (wrong verifier)
-validate('invalid')      // false
+validate('invalid') // false
 ```
 
 ## Type Signature
@@ -26,11 +26,12 @@ type ValidateOptions = {
 
 - **`rut`** (`unknown`) - The RUT to validate. Accepts unknown types for type safety.
 - **`options`** (optional) - Validation options
-  - **`strict`** (`boolean`, default: `false`) - If true, rejects suspicious patterns
+  - **`strict`** (`boolean`, default: `false`) - If true, rejects suspicious repeated-digit placeholders
 
 ## Return Value
 
 Returns `boolean`:
+
 - `true` if the RUT is valid
 - `false` if the RUT is invalid or not a string
 
@@ -42,17 +43,18 @@ Returns `boolean`:
 import { validate } from 'rut.ts'
 
 // Valid RUTs
-validate('12.345.678-5')   // true
-validate('12345678-5')     // true (without dots)
-validate('123456785')      // true (no formatting)
-validate('14.625.621-K')   // true (K verifier)
+validate('12.345.678-5') // true
+validate('12345678-5') // true (without dots)
+validate('123456785') // true (no formatting)
+validate('14.625.621-K') // true (K verifier)
 
 // Invalid RUTs
-validate('12.345.678-0')   // false (wrong verifier)
-validate('abc')            // false
-validate('')               // false
-validate(null)             // false
-validate(123)              // false
+validate('12.345.678-0') // false (wrong verifier)
+validate('12.345678-5') // false (malformed dot grouping)
+validate('abc') // false
+validate('') // false
+validate(null) // false
+validate(123) // false
 ```
 
 ### Strict Mode
@@ -63,14 +65,33 @@ Strict mode rejects suspicious patterns like repeated digits:
 import { validate } from 'rut.ts'
 
 // Suspicious RUTs (technically valid, but unlikely to be real)
-validate('11.111.111-1', { strict: true })  // false
-validate('22.222.222-2', { strict: true })  // false
-validate('33.333.333-3', { strict: true })  // false
+validate('11.111.111-1', { strict: true }) // false
+validate('22.222.222-2', { strict: true }) // false
+validate('33.333.333-3', { strict: true }) // false
+validate('8.888.888-K', { strict: true }) // false
 
 // Without strict mode, these pass
-validate('11.111.111-1')  // true
-validate('22.222.222-2')  // true
+validate('11.111.111-1') // true
+validate('22.222.222-2') // true
 ```
+
+### Accepted Input Shapes
+
+`validate()` accepts the common Chilean RUT shapes and rejects ambiguous grouping before calculating the verifier digit:
+
+```typescript copy
+import { validate } from 'rut.ts'
+
+validate('12.345.678-5') // true
+validate('12345678-5') // true
+validate('123456785') // true
+
+validate('12.345678-5') // false
+validate('12345.678-5') // false
+validate('12,345,678-5') // false
+```
+
+Inputs are length-capped before parsing so very large strings fail fast instead of spending time in regular expressions.
 
 ### Type Safety
 
@@ -86,9 +107,9 @@ function processUserInput(input: unknown) {
   }
 }
 
-processUserInput('12.345.678-5')  // Valid RUT
-processUserInput(12345678)        // Silent fail (returns false)
-processUserInput(null)            // Silent fail (returns false)
+processUserInput('12.345.678-5') // Valid RUT
+processUserInput(12345678) // Silent fail (returns false)
+processUserInput(null) // Silent fail (returns false)
 ```
 
 ## Use Cases

@@ -80,6 +80,11 @@ describe('decompose function', () => {
       expect(decompose('invalid', { throwOnError: false })).toBeNull()
     })
 
+    test('returns null for non-string inputs', () => {
+      expect(decompose(123456789 as any, { throwOnError: false })).toBeNull()
+      expect(decompose(null as any, { throwOnError: false })).toBeNull()
+    })
+
     test('returns decomposed RUT when valid', () => {
       expect(decompose('18.972.631-7', { throwOnError: false })).toEqual({ body: '18972631', verifier: '7' })
       expect(decompose('9.068.826-K', { throwOnError: false })).toEqual({ body: '9068826', verifier: 'K' })

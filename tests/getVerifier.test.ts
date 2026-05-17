@@ -97,6 +97,11 @@ describe('getVerifier function', () => {
       expect(getVerifier('invalid', { throwOnError: false })).toBeNull()
     })
 
+    test('returns null for non-string inputs', () => {
+      expect(getVerifier(123456789 as any, { throwOnError: false })).toBeNull()
+      expect(getVerifier(null as any, { throwOnError: false })).toBeNull()
+    })
+
     test('returns verifier when valid', () => {
       expect(getVerifier('23.579.222-2', { throwOnError: false })).toBe('2')
       expect(getVerifier('9.068.826-K', { throwOnError: false })).toBe('K')

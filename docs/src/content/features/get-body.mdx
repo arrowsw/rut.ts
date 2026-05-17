@@ -27,8 +27,12 @@ function getBody(rut: string, options: { throwOnError: true }): string
 
 ## Return Value
 
-- **Default mode**: Returns body string (7-8 digits) or throws error
+- **Default mode**: Returns body string (7-8 digits) or throws a generic `Invalid RUT input` error
 - **Safe mode**: Returns body string or `null` if invalid
+
+> **v4.0.0:** non-string inputs (numbers, `null`, `undefined`, objects) are
+> treated like any other invalid input — they return `null` in safe mode and
+> throw the generic error otherwise, instead of throwing a `TypeError`.
 
 ## Examples
 

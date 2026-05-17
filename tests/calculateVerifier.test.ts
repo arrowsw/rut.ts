@@ -61,6 +61,8 @@ describe('calculateVerifier', () => {
 
     test('throws error with non-numeric characters', () => {
       expect(() => calculateVerifier('abcdefgh')).toThrow()
+      expect(() => calculateVerifier('12abc345678')).toThrow()
+      expect(() => calculateVerifier('12#345#678')).toThrow()
     })
   })
 
@@ -73,6 +75,12 @@ describe('calculateVerifier', () => {
       expect(calculateVerifier('123', { throwOnError: false })).toBeNull()
       expect(calculateVerifier('12345', { throwOnError: false })).toBeNull()
       expect(calculateVerifier('12345678901', { throwOnError: false })).toBeNull()
+      expect(calculateVerifier('12abc345678', { throwOnError: false })).toBeNull()
+    })
+
+    test('returns null for non-string inputs', () => {
+      expect(calculateVerifier(12345678 as any, { throwOnError: false })).toBeNull()
+      expect(calculateVerifier(null as any, { throwOnError: false })).toBeNull()
     })
 
     test('returns verifier when valid', () => {

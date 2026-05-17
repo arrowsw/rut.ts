@@ -2,14 +2,16 @@
 
 Removes extraneous characters and leading zeros from RUT strings, returning a normalized version.
 
+`clean()` is intentionally permissive: it normalizes input shape, but it does not validate the verifier digit. Use `validate()` before accepting a RUT in production flows.
+
 ## Basic Usage
 
 ```typescript copy
 import { clean } from 'rut.ts'
 
-clean('12.345.678-5')  // '123456785'
-clean('  12-345-678-5  ')  // '123456785'
-clean('00012345678K')  // '12345678K'
+clean('12.345.678-5') // '123456785'
+clean('  12-345-678-5  ') // '123456785'
+clean('00012345678K') // '12345678K'
 ```
 
 ## Type Signature
@@ -44,16 +46,16 @@ type SafeOptions = {
 import { clean } from 'rut.ts'
 
 // Remove dots and hyphens
-clean('12.345.678-5')  // '123456785'
+clean('12.345.678-5') // '123456785'
 
 // Remove spaces
-clean(' 12 345 678 5 ')  // '123456785'
+clean(' 12 345 678 5 ') // '123456785'
 
 // Remove leading zeros
-clean('0012345678-5')  // '123456785'
+clean('0012345678-5') // '123456785'
 
 // Uppercase K
-clean('12345678k')  // '12345678K'
+clean('12345678k') // '12345678K'
 ```
 
 ### Safe Mode
@@ -65,7 +67,7 @@ import { clean } from 'rut.ts'
 try {
   clean('invalid')
 } catch (error) {
-  console.error(error) // Error: String "invalid" is not valid as a RUT input
+  console.error(error) // Error: Invalid RUT input
 }
 
 // With safe mode (returns null)
@@ -76,7 +78,7 @@ console.log(result) // null
 const handleInput = (value: string) => {
   const cleaned = clean(value, { throwOnError: false })
   if (cleaned) {
-    // Process valid RUT
+    // Process normalized RUT shape, then validate before accepting it
     saveToDatabase(cleaned)
   } else {
     // Show error to user
@@ -91,19 +93,19 @@ const handleInput = (value: string) => {
 import { clean } from 'rut.ts'
 
 // Multiple hyphens
-clean('12-345-678-5')  // '123456785'
+clean('12-345-678-5') // '123456785'
 
 // Special characters
-clean('12#345$678%5')  // '123456785'
+clean('12#345$678%5') // '123456785'
 
 // Mixed formatting
-clean('12.345-678 5')  // '123456785'
+clean('12.345-678 5') // '123456785'
 
 // Parentheses
-clean('(12.345.678-5)')  // '123456785'
+clean('(12.345.678-5)') // '123456785'
 
 // Leading zeros (removed)
-clean('000012345678-5')  // '123456785'
+clean('000012345678-5') // '123456785'
 ```
 
 ## Validation Rules
@@ -114,6 +116,11 @@ The function validates:
 - ✅ K (if present) must be at the end
 - ✅ Only one K allowed
 - ✅ Only digits and K allowed
+
+It does not validate:
+
+- The Modulo 11 verifier digit
+- Whether the original input used canonical dot or hyphen grouping
 
 ## Use Cases
 

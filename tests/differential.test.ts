@@ -1,0 +1,364 @@
+/**
+ * Differential harness: v3.4.0 `validate()` vs v4.0.0 `validate()`.
+ *
+ * Goal: characterize EXACTLY which input shapes change their validation result
+ * between the last 3.x release and 4.0.0, so a large production dataset can be
+ * assessed for impact before upgrading.
+ *
+ * This is intentionally a single self-contained file: the project's jest
+ * `testRegex` matches every `*.ts` under `tests/`, so sibling helper modules
+ * would be picked up as (empty) suites and break `npm test`.
+ *
+ * Default `npm test` only runs a fast smoke check here. The full ~1M-case run
+ * is gated behind an env var:
+ *
+ *   npm run test:differential                  # 1,000,000 cases (default)
+ *   DIFF_CORPUS=200000 npm run test:differential
+ *
+ * It writes a human-readable report to `tests/differential-report.md`.
+ * The corpus is generated from a seeded PRNG, so runs are reproducible.
+ */
+
+import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+import { validate as validateV4 } from '../src/index'
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * FROZEN SNAPSHOT — rut.ts v3.4.0 `validate()` and its dependencies.
+ * Copied verbatim (behavior-preserving) from the 3.4.0 `src/index.ts`.
+ * DO NOT "improve" this code: its job is to reproduce 3.x behavior exactly.
+ * ──────────────────────────────────────────────────────────────────────────── */
+const legacyPatterns = {
+  cleaning: /^0+|[^0-9kK]+/g,
+  rutLike: /^0*(\d{1,3}(\.?\d{3})*)-?([\dkK])$/,
+  suspicious: /^(\d)\1?\.?(\1{3})\.?(\1{3})-?(\d|k)?$/,
+}
+
+const LEGACY_MIN = 8
+const LEGACY_MAX = 9
+
+const legacyCleanRaw = (rut: string): string => rut.replace(/^0+|[^0-9kK]+/g, '').toUpperCase()
+
+const legacyClean = (rut: string): string | null => {
+  const cleanRut = rut.replace(legacyPatterns.cleaning, '').toUpperCase()
+  if (cleanRut.length < LEGACY_MIN || cleanRut.length > LEGACY_MAX) return null
+  if (cleanRut.includes('K') && cleanRut.indexOf('K') !== cleanRut.length - 1) return null
+  return cleanRut
+}
+
+const legacyCalculateVerifier = (rutBody: string): string | null => {
+  const cleanedRut = legacyCleanRaw(rutBody)
+  if (cleanedRut.length < 7 || cleanedRut.length > 8) return null
+  if (!/^\d+$/.test(cleanedRut)) return null
+  const sum = cleanedRut
+    .split('')
+    .reverse()
+    .reduce((acc, digit, index) => acc + Number(digit) * ((index % 6) + 2), 0)
+  const checkDigit = 11 - (sum % 11)
+  return checkDigit === 11 ? '0' : checkDigit === 10 ? 'K' : checkDigit.toString()
+}
+
+const legacyValidate = (rut: unknown, options?: { strict?: boolean }): boolean => {
+  if (typeof rut !== 'string' || rut.length === 0) return false
+  if (!legacyPatterns.rutLike.test(rut)) return false
+  if (options?.strict && legacyPatterns.suspicious.test(rut)) return false
+
+  const cleaned = legacyClean(rut)
+  if (cleaned === null) return false
+  const body = cleaned.slice(0, -1)
+  const verifier = cleaned.slice(-1)
+
+  const calculated = legacyCalculateVerifier(body)
+  if (!calculated) return false
+  return calculated === verifier
+}
+/* ──────────────────────────── end frozen snapshot ─────────────────────────── */
+
+/** Deterministic PRNG (mulberry32) so the corpus and report are reproducible. */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0
+  return () => {
+    a |= 0
+    a = (a + 0x6d2b79f5) | 0
+    let t = Math.imul(a ^ (a >>> 15), 1 | a)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+const rand = mulberry32(0x52555420) // "RUT "
+const randInt = (min: number, max: number) => min + Math.floor(rand() * (max - min + 1))
+
+/** Modulo 11 — used only to build *known-valid* corpus rows. */
+function dvOf(body: string): string {
+  let sum = 0
+  let mul = 2
+  for (let i = body.length - 1; i >= 0; i--) {
+    sum += (body.charCodeAt(i) - 48) * mul
+    mul = mul === 7 ? 2 : mul + 1
+  }
+  const c = 11 - (sum % 11)
+  return c === 11 ? '0' : c === 10 ? 'K' : String(c)
+}
+
+function randomValidBody(): string {
+  // 7- or 8-digit body, never all-same-digit, no leading zero.
+  const len = rand() < 0.5 ? 7 : 8
+  let body = ''
+  do {
+    body = String(randInt(0, 9) || 1)
+    for (let i = 1; i < len; i++) body += String(randInt(0, 9))
+  } while (/^(.)\1*$/.test(body))
+  return body
+}
+
+type Row = { input: string; shape: string }
+
+/** Render a known-valid (body+dv) into one of many real-world shapes. */
+function renderShapes(body: string, dv: string): Row[] {
+  const compact = `${body}${dv}`
+  const dotted = (b: string) => {
+    // group from the right in 3s
+    const head = b.length === 8 ? b.slice(0, 2) : b.slice(0, 1)
+    const rest = b.length === 8 ? b.slice(2) : b.slice(1)
+    return `${head}.${rest.slice(0, 3)}.${rest.slice(3)}`
+  }
+  return [
+    { input: compact, shape: 'compact' },
+    { input: `${body}-${dv}`, shape: 'compact+hyphen' },
+    { input: `${dotted(body)}-${dv}`, shape: 'canonical-dotted' },
+    { input: `${dotted(body)}${dv}`, shape: 'dotted-no-hyphen' },
+    { input: `${compact.slice(0, -1)}${dv.toLowerCase()}`, shape: 'lowercase-k' },
+    { input: `00${compact}`, shape: 'leading-zeros' },
+    { input: `  ${dotted(body)}-${dv}  `, shape: 'surrounding-space' },
+    // ----- non-canonical: this is the regression surface -----
+    { input: `${body.slice(0, 2)}.${body.slice(2)}-${dv}`, shape: 'noncanonical-grouping' },
+    { input: `${body.split('').join('.')}-${dv}`, shape: 'every-digit-dotted' },
+    { input: `${body.split('').join(' ')} ${dv}`, shape: 'internal-spaces' },
+    { input: `${body.replace(/(\d{3})/g, '$1,')}${dv}`, shape: 'comma-separated' },
+  ]
+}
+
+const REPORT_PATH = join(__dirname, 'differential-report.md')
+
+function runDifferential(targetSize: number) {
+  const rows: Row[] = []
+
+  // Stratum A + B: known-valid bodies in many representations.
+  while (rows.length < targetSize * 0.55) {
+    const body = randomValidBody()
+    rows.push(...renderShapes(body, dvOf(body)))
+  }
+
+  // Stratum C: invalid — wrong DV, random noise, wrong length, garbage chars.
+  while (rows.length < targetSize * 0.9) {
+    const pick = rand()
+    if (pick < 0.4) {
+      const body = randomValidBody()
+      const good = dvOf(body)
+      let bad = String(randInt(0, 9))
+      while (bad === good) bad = randInt(0, 9) < 1 ? 'K' : String(randInt(0, 9))
+      rows.push({ input: `${body}-${bad}`, shape: 'invalid-wrong-dv' })
+    } else if (pick < 0.7) {
+      const n = randInt(1, 15)
+      let s = ''
+      for (let i = 0; i < n; i++) s += String(randInt(0, 9))
+      rows.push({ input: s, shape: 'random-digits' })
+    } else if (pick < 0.9) {
+      rows.push({ input: Math.random().toString(36).slice(2, 2 + randInt(3, 12)), shape: 'garbage' })
+    } else {
+      const body = randomValidBody()
+      rows.push({ input: `${body}${body}${dvOf(body)}`, shape: 'too-long' })
+    }
+  }
+
+  // Stratum D: targeted edges + the security cases. Each appears EXACTLY ONCE.
+  //
+  // IMPORTANT: the frozen 3.4.0 regex is ReDoS-vulnerable, so a long adversarial
+  // string must never be fed to `legacyValidate` more than a handful of times.
+  // We use a moderate-length adversarial row here (single occurrence) and prove
+  // the *real* 100k-char ReDoS fix as a v4-only timing assertion below — without
+  // ever running the vulnerable legacy regex on it.
+  const edges: Row[] = [
+    { input: '', shape: 'empty' },
+    { input: '   ', shape: 'whitespace-only' },
+    { input: '0'.repeat(4000) + 'x', shape: 'redos-adversarial-moderate' },
+    { input: '1'.repeat(20000), shape: 'huge-digits' },
+    { input: '0'.repeat(55) + '123456785', shape: 'len-64-padded-valid' },
+    { input: '0'.repeat(56) + '123456785', shape: 'len-65-over-cap' },
+  ]
+  for (const d of '0123456789') {
+    const b = d.repeat(8)
+    edges.push({ input: `${b}${dvOf(b)}`, shape: 'placeholder-repeated' })
+  }
+  rows.push(...edges)
+
+  // Pad to the target size with CHEAP invalid rows (short random digit strings),
+  // never by recycling the expensive edges above.
+  while (rows.length < targetSize) {
+    const n = randInt(1, 6)
+    let s = ''
+    for (let i = 0; i < n; i++) s += String(randInt(0, 9))
+    rows.push({ input: s, shape: 'pad-short-digits' })
+  }
+
+  // v4-only ReDoS proof: the genuine 100k-char attack string is NEVER passed to
+  // the vulnerable legacy regex — only to the hardened v4 validator.
+  const redosInput = '0'.repeat(100_000) + 'x'
+  const redosStart = performance.now()
+  const redosV4Result = validateV4(redosInput)
+  const redosV4Ms = performance.now() - redosStart
+
+  // ---- classify ----
+  let agreeTrue = 0
+  let agreeFalse = 0
+  const regressions = new Map<string, { count: number; samples: string[] }>() // old=true, new=false
+  const newAccepts = new Map<string, { count: number; samples: string[] }>() // old=false, new=true
+
+  const bump = (m: Map<string, { count: number; samples: string[] }>, shape: string, input: string) => {
+    const e = m.get(shape) ?? { count: 0, samples: [] }
+    e.count++
+    if (e.samples.length < 8) e.samples.push(input.length > 40 ? `${input.slice(0, 37)}…` : input)
+    m.set(shape, e)
+  }
+
+  for (const { input, shape } of rows) {
+    const o = legacyValidate(input)
+    const n = validateV4(input)
+    if (o && n) agreeTrue++
+    else if (!o && !n) agreeFalse++
+    else if (o && !n) bump(regressions, shape, input)
+    else bump(newAccepts, shape, input)
+  }
+
+  // Strict-mode security spot check (the uppercase-K bypass).
+  const strictBypassOld = legacyValidate('8.888.888-K', { strict: true })
+  const strictBypassNew = validateV4('8.888.888-K', { strict: true })
+
+  // Non-string inputs (kept out of the string corpus).
+  const nonStringRows = [null, undefined, 123456785, {}, [], NaN, true]
+  const nonStringDivergence = nonStringRows.filter(
+    (v) => legacyValidate(v as unknown) !== validateV4(v as unknown),
+  )
+
+  const total = rows.length
+  const regrTotal = [...regressions.values()].reduce((a, b) => a + b.count, 0)
+  const accTotal = [...newAccepts.values()].reduce((a, b) => a + b.count, 0)
+
+  const fmt = (m: Map<string, { count: number; samples: string[] }>) =>
+    [...m.entries()]
+      .sort((a, b) => b[1].count - a[1].count)
+      .map(([shape, e]) => `| \`${shape}\` | ${e.count} | ${e.samples.map((s) => `\`${s}\``).join(', ')} |`)
+      .join('\n') || '| _(none)_ | 0 | |'
+
+  const report = `# Differential report — v3.4.0 vs v4.0.0 \`validate()\`
+
+- Seed: \`0x52555420\` (reproducible)
+- Corpus size: **${total.toLocaleString('en-US')}**
+- Agree valid (\`true/true\`): **${agreeTrue.toLocaleString('en-US')}**
+- Agree invalid (\`false/false\`): **${agreeFalse.toLocaleString('en-US')}**
+- ⚠️ Regressions (was \`true\` → now \`false\`): **${regrTotal.toLocaleString('en-US')}**
+- New acceptances (was \`false\` → now \`true\`): **${accTotal.toLocaleString('en-US')}**
+
+## ⚠️ Regressions by input shape (potential false negatives for a 3.x dataset)
+
+| Input shape | Count | Samples |
+|-------------|------:|---------|
+${fmt(regressions)}
+
+## New acceptances by input shape
+
+| Input shape | Count | Samples |
+|-------------|------:|---------|
+${fmt(newAccepts)}
+
+## Security spot checks
+
+- \`validate('8.888.888-K', { strict: true })\` — v3.4.0: **${strictBypassOld}** (bug: should be false), v4.0.0: **${strictBypassNew}**
+- Non-string inputs with diverging result: **${nonStringDivergence.length}** ${
+    nonStringDivergence.length ? `(${nonStringDivergence.map(String).join(', ')})` : '(none — both reject)'
+  }
+- ReDoS: \`validate('0'.repeat(100000) + 'x')\` on v4.0.0 → **${redosV4Result}** in **${redosV4Ms.toFixed(2)} ms** (the frozen 3.4.0 regex exhibits catastrophic backtracking on this input and is deliberately not run here)
+
+## How to read this
+
+\`generate()\`/canonical inputs land in *Agree valid*. The **Regressions** table
+is the actionable part: every shape there is an input format that v3.4.0
+accepted and v4.0.0 now rejects. Confirm your production dataset uses **none**
+of those shapes (or normalize it to compact / compact+hyphen / canonical-dotted)
+before upgrading. This harness cannot prove safety on data it never saw — it
+enumerates exactly what changed.
+`
+
+  writeFileSync(REPORT_PATH, report)
+  return {
+    total,
+    agreeTrue,
+    agreeFalse,
+    regrTotal,
+    accTotal,
+    strictBypassOld,
+    strictBypassNew,
+    nonStringDivergence: nonStringDivergence.length,
+    redosV4Result,
+    redosV4Ms,
+    regressionShapes: [...regressions.keys()],
+    newAcceptShapes: [...newAccepts.keys()],
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────── */
+
+const FULL = process.env.RUN_DIFFERENTIAL === '1'
+const CORPUS = Number(process.env.DIFF_CORPUS ?? 1_000_000)
+
+;(FULL ? describe : describe.skip)('differential v3.4.0 vs v4.0.0 (full corpus)', () => {
+  jest.setTimeout(120_000)
+
+  const result = runDifferential(CORPUS)
+
+  test('canonical-valid inputs never regress (no false negatives on accepted shapes)', () => {
+    // Regressions are only allowed in shapes that v4.0.0 *intentionally and
+    // documentably* rejects (see CHANGELOG "Changed (Breaking)"):
+    //  - non-canonical dot grouping (#2)
+    //  - inputs longer than the 64-char cap (#2)
+    // The every-digit-dotted / internal-spaces / comma-separated shapes were
+    // already rejected by 3.4.0 too, so they must NOT appear here.
+    const allowed = new Set(['noncanonical-grouping', 'len-65-over-cap'])
+    const unexpected = result.regressionShapes.filter((s) => !allowed.has(s))
+    // eslint-disable-next-line no-console
+    console.log(JSON.stringify(result, null, 2))
+    expect(unexpected).toEqual([])
+  })
+
+  test('v4.0.0 introduces no surprising new acceptances', () => {
+    // The only relaxation is whitespace trimming around otherwise-valid input.
+    const allowed = new Set(['surrounding-space'])
+    const unexpected = result.newAcceptShapes.filter((s) => !allowed.has(s))
+    expect(unexpected).toEqual([])
+  })
+
+  test('strict uppercase-K bypass is fixed', () => {
+    expect(result.strictBypassOld).toBe(true) // the 3.x bug
+    expect(result.strictBypassNew).toBe(false) // fixed in 4.0.0
+  })
+
+  test('v4.0.0 is ReDoS-safe on a 100k-char adversarial input', () => {
+    expect(result.redosV4Result).toBe(false)
+    expect(result.redosV4Ms).toBeLessThan(50)
+  })
+
+  test('report written', () => {
+    expect(result.total).toBeGreaterThanOrEqual(CORPUS)
+  })
+})
+
+// Fast smoke check so the file is a valid suite under plain `npm test`.
+;(FULL ? describe.skip : describe)('differential (smoke)', () => {
+  test('legacy snapshot and v4 disagree exactly on a known non-canonical shape', () => {
+    expect(legacyValidate('12.345678-5')).toBe(true)
+    expect(validateV4('12.345678-5')).toBe(false)
+    expect(legacyValidate('12.345.678-5')).toBe(validateV4('12.345.678-5'))
+  })
+})
