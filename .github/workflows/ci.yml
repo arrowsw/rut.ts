@@ -28,15 +28,8 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
 
-      # NOTE: we intentionally use `npm install`, not `npm ci`.
-      # The committed package-lock.json is out of sync with package.json
-      # (devDependencies were bumped — eslint 8->9, jest 29->30, typescript
-      # 5.4->5.9, ... — without regenerating the lock). This pre-existing drift
-      # also breaks `npm ci` and `npm run lint`. Once the lockfile is
-      # regenerated (`npm install` committed) this should be restored to
-      # `npm ci` for reproducible installs.
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci
 
       - name: Unit tests
         run: npm test
@@ -49,7 +42,19 @@ jobs:
       - name: Differential (behavior regression guard)
         run: npm run test:differential
 
-  # `npm run lint` is intentionally NOT a job yet: ESLint 9 requires an
-  # `eslint.config.*` flat config but the repo still ships `.eslintrc`, and the
-  # lockfile drift above compounds it. Add a lint job in the follow-up that
-  # migrates the ESLint config and regenerates the lockfile.
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: ESLint (flat config + prettier)
+        run: npm run lint

@@ -133,7 +133,7 @@ export default function HomePage() {
           {[
             { icon: '⚡', title: 'Lightning Fast', stat: '<1ms', label: 'execution time' },
             { icon: '📦', title: 'Ultra Lightweight', stat: '~3KB', label: 'minified + gzipped' },
-            { icon: '🔧', title: '9 Core Functions', stat: '166', label: 'test cases' },
+            { icon: '🔧', title: '9 Core Functions', stat: '182', label: 'test cases' },
             { icon: '🛡️', title: 'Type Safe', stat: '100%', label: 'type coverage' }
           ].map((feature, i) => (
             <div key={i} style={{

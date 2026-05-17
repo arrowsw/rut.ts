@@ -73,6 +73,8 @@ const isCleanRut = (rut: string): boolean => {
   )
 }
 
+const isVerifierDigit = (value: string): value is VerifierDigit => /^[\dK]$/.test(value)
+
 const parseRutLike = (rut: unknown): DecomposedRut | null => {
   if (!isBoundedString(rut)) return null
 
@@ -111,6 +113,23 @@ const normalizeRutBody = (rutBody: unknown): string | null => {
   return cleanedRut
 }
 
+// `11 - (sum % 11)` is always in 1..11. This typed table maps every possible
+// check digit to its verifier character, so the result is `VerifierDigit`
+// without an `as` assertion (keeps genuine 100% type coverage).
+const VERIFIER_BY_CHECK_DIGIT: Record<number, VerifierDigit> = {
+  1: '1',
+  2: '2',
+  3: '3',
+  4: '4',
+  5: '5',
+  6: '6',
+  7: '7',
+  8: '8',
+  9: '9',
+  10: 'K',
+  11: '0',
+}
+
 const calculateVerifierForBody = (rutBody: string): VerifierDigit => {
   let sum = 0
   let multiplier = 2
@@ -121,7 +140,7 @@ const calculateVerifierForBody = (rutBody: string): VerifierDigit => {
   }
 
   const checkDigit = 11 - (sum % 11)
-  return (checkDigit === 11 ? '0' : checkDigit === 10 ? 'K' : checkDigit.toString()) as VerifierDigit
+  return VERIFIER_BY_CHECK_DIGIT[checkDigit]
 }
 
 const isSuspicious = (body: string): boolean => {
@@ -208,7 +227,10 @@ function getVerifier(rut: string, options: { throwOnError: true }): VerifierDigi
 function getVerifier(rut: string, options?: SafeOptions): VerifierDigit | null
 function getVerifier(rut: string, options?: SafeOptions): VerifierDigit | null {
   const cleaned = clean(rut, withThrowOption(options?.throwOnError))
-  return (cleaned?.slice(-1) as VerifierDigit) ?? null
+  if (cleaned === null) return null
+
+  const verifier = cleaned.slice(-1)
+  return isVerifierDigit(verifier) ? verifier : null
 }
 
 /**

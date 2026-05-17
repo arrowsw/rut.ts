@@ -50,7 +50,8 @@
     "prettier": "3.8.1",
     "terser": "5.46.0",
     "ts-jest": "29.4.6",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.53.1"
   },
   "keywords": [
     "validation",
