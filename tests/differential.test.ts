@@ -166,7 +166,12 @@ function runDifferential(targetSize: number) {
       for (let i = 0; i < n; i++) s += String(randInt(0, 9))
       rows.push({ input: s, shape: 'random-digits' })
     } else if (pick < 0.9) {
-      rows.push({ input: Math.random().toString(36).slice(2, 2 + randInt(3, 12)), shape: 'garbage' })
+      rows.push({
+        input: Math.random()
+          .toString(36)
+          .slice(2, 2 + randInt(3, 12)),
+        shape: 'garbage',
+      })
     } else {
       const body = randomValidBody()
       rows.push({ input: `${body}${body}${dvOf(body)}`, shape: 'too-long' })
@@ -238,9 +243,7 @@ function runDifferential(targetSize: number) {
 
   // Non-string inputs (kept out of the string corpus).
   const nonStringRows = [null, undefined, 123456785, {}, [], NaN, true]
-  const nonStringDivergence = nonStringRows.filter(
-    (v) => legacyValidate(v as unknown) !== validateV4(v as unknown),
-  )
+  const nonStringDivergence = nonStringRows.filter((v) => legacyValidate(v as unknown) !== validateV4(v as unknown))
 
   const total = rows.length
   const regrTotal = [...regressions.values()].reduce((a, b) => a + b.count, 0)
@@ -327,7 +330,6 @@ const CORPUS = Number(process.env.DIFF_CORPUS ?? 1_000_000)
     // already rejected by 3.4.0 too, so they must NOT appear here.
     const allowed = new Set(['noncanonical-grouping', 'len-65-over-cap'])
     const unexpected = result.regressionShapes.filter((s) => !allowed.has(s))
-    // eslint-disable-next-line no-console
     console.log(JSON.stringify(result, null, 2))
     expect(unexpected).toEqual([])
   })
