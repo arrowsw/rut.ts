@@ -1,11 +1,18 @@
-type ValidationPatterns = { rutLike: RegExp; suspicious: RegExp; cleaning: RegExp }
+type ValidationPatterns = {
+  compact: RegExp
+  compactWithHyphen: RegExp
+  dotted: RegExp
+  invalidRutChars: RegExp
+  bodySeparators: RegExp
+  bodyDigits: RegExp
+}
 type DecomposedRut = { body: string; verifier: string }
 type FormatOptions = { incremental?: boolean; dots?: boolean; throwOnError?: boolean }
 type SafeOptions = { throwOnError?: boolean }
 type ValidateOptions = { strict?: boolean }
 type VerifierDigit = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | 'K'
 
-export const getInvalidRutError = (rut: string): string => `String "${rut}" is not valid as a RUT input`
+export const getInvalidRutError = (_rut?: unknown): string => 'Invalid RUT input'
 
 /** Helper to create SafeOptions with explicit throwOnError boolean */
 const withThrowOption = (throwOnError?: boolean): { throwOnError: boolean } => ({
@@ -14,18 +21,126 @@ const withThrowOption = (throwOnError?: boolean): { throwOnError: boolean } => (
 
 const MIN_RUT_LENGTH = 8
 const MAX_RUT_LENGTH = 9
-
-/** Internal helper to clean RUT without length validation (used for incremental formatting) */
-const cleanRaw = (rut: string): string => rut.replace(/^0+|[^0-9kK]+/g, '').toUpperCase()
+const MIN_BODY_LENGTH = 7
+const MAX_BODY_LENGTH = 8
+const MAX_RUT_INPUT_LENGTH = 64
+const MIN_GENERATED_BODY = 10000000
+const MAX_GENERATED_BODY = 99999999
+const UINT32_RANGE = 0x100000000
 
 const patterns: ValidationPatterns = {
-  cleaning: /^0+|[^0-9kK]+/g,
-  rutLike: /^0*(\d{1,3}(\.?\d{3})*)-?([\dkK])$/,
-  suspicious: /^(\d)\1?\.?(\1{3})\.?(\1{3})-?(\d|k)?$/,
+  compact: /^0*\d{7,8}[\dkK]$/,
+  compactWithHyphen: /^0*\d{7,8}-[\dkK]$/,
+  dotted: /^0*\d{1,3}\.\d{3}\.\d{3}-?[\dkK]$/,
+  invalidRutChars: /[^0-9kK]+/g,
+  bodySeparators: /[.\-\s]+/g,
+  bodyDigits: /^\d+$/,
+}
+
+const fail = <T>(input: unknown, shouldThrow: boolean): T | null => {
+  if (shouldThrow) throw new Error(getInvalidRutError(input))
+  return null
+}
+
+const isBoundedString = (input: unknown): input is string =>
+  typeof input === 'string' && input.length > 0 && input.length <= MAX_RUT_INPUT_LENGTH
+
+const normalizeRutValue = (rut: string): string =>
+  rut.replace(patterns.invalidRutChars, '').replace(/^0+/, '').toUpperCase()
+
+const isCleanRut = (rut: string): boolean => {
+  if (rut.length < MIN_RUT_LENGTH || rut.length > MAX_RUT_LENGTH) return false
+
+  const body = rut.slice(0, -1)
+  const verifier = rut.slice(-1)
+  return (
+    body.length >= MIN_BODY_LENGTH &&
+    body.length <= MAX_BODY_LENGTH &&
+    patterns.bodyDigits.test(body) &&
+    /^[\dK]$/.test(verifier)
+  )
+}
+
+const parseRutLike = (rut: unknown): DecomposedRut | null => {
+  if (!isBoundedString(rut)) return null
+
+  const input = rut.trim()
+  if (input.length === 0 || input.length > MAX_RUT_INPUT_LENGTH) return null
+
+  const hasValidShape =
+    patterns.compact.test(input) || patterns.compactWithHyphen.test(input) || patterns.dotted.test(input)
+  if (!hasValidShape) return null
+
+  const cleaned = normalizeRutValue(input)
+  if (!isCleanRut(cleaned)) return null
+
+  return {
+    body: cleaned.slice(0, -1),
+    verifier: cleaned.slice(-1),
+  }
+}
+
+/** Internal helper to clean RUT without complete-RUT validation (used for incremental formatting) */
+const cleanRaw = (rut: string): string => {
+  const cleaned = normalizeRutValue(rut.slice(0, MAX_RUT_INPUT_LENGTH))
+  const digits = cleaned.replace(/K/g, '')
+  return (cleaned.endsWith('K') ? `${digits}K` : digits).slice(0, MAX_RUT_LENGTH)
+}
+
+const normalizeRutBody = (rutBody: unknown): string | null => {
+  if (!isBoundedString(rutBody)) return null
+
+  const cleanedRut = rutBody.replace(patterns.bodySeparators, '').replace(/^0+/, '')
+  if (cleanedRut.length < MIN_BODY_LENGTH || cleanedRut.length > MAX_BODY_LENGTH) return null
+  if (!patterns.bodyDigits.test(cleanedRut)) return null
+
+  return cleanedRut
+}
+
+const calculateVerifierForBody = (rutBody: string): VerifierDigit => {
+  let sum = 0
+  let multiplier = 2
+
+  for (let index = rutBody.length - 1; index >= 0; index -= 1) {
+    sum += (rutBody.charCodeAt(index) - 48) * multiplier
+    multiplier = multiplier === 7 ? 2 : multiplier + 1
+  }
+
+  const checkDigit = 11 - (sum % 11)
+  return (checkDigit === 11 ? '0' : checkDigit === 10 ? 'K' : checkDigit.toString()) as VerifierDigit
+}
+
+const isSuspicious = (body: string): boolean => {
+  const firstDigit = body[0]
+  for (let index = 1; index < body.length; index += 1) {
+    if (body[index] !== firstDigit) return false
+  }
+  return true
+}
+
+const randomIntInclusive = (min: number, max: number): number => {
+  const range = max - min + 1
+  const cryptoSource = globalThis.crypto
+
+  if (cryptoSource?.getRandomValues) {
+    const maxUnbiased = Math.floor(UINT32_RANGE / range) * range
+    const buffer = new Uint32Array(1)
+    let value = 0
+
+    do {
+      cryptoSource.getRandomValues(buffer)
+      value = buffer[0]
+    } while (value >= maxUnbiased)
+
+    return min + (value % range)
+  }
+
+  return min + Math.floor(Math.random() * range)
 }
 
 /**
  * Cleans the input string by removing leading zeros, non-numeric characters, and ensures the RUT is uppercased.
+ * This is a permissive normalization helper and does not validate the verifier digit.
  * @param {string} rut - The RUT string to clean.
  * @param {SafeOptions} [options] - Configuration options.
  * @param {boolean} [options.throwOnError=true] - If true (default), throws an error for invalid RUTs. If false, returns null.
@@ -38,17 +153,10 @@ function clean(rut: string, options: { throwOnError: true }): string
 function clean(rut: string, options?: SafeOptions): string | null
 function clean(rut: string, options?: SafeOptions): string | null {
   const shouldThrow = options?.throwOnError ?? true
-  const cleanRut = rut.replace(patterns.cleaning, '').toUpperCase()
+  if (!isBoundedString(rut)) return fail<string>(rut, shouldThrow)
 
-  if (cleanRut.length < MIN_RUT_LENGTH || cleanRut.length > MAX_RUT_LENGTH) {
-    if (shouldThrow) throw new Error(getInvalidRutError(rut))
-    return null
-  }
-
-  if (cleanRut.includes('K') && cleanRut.indexOf('K') !== cleanRut.length - 1) {
-    if (shouldThrow) throw new Error(getInvalidRutError(rut))
-    return null
-  }
+  const cleanRut = normalizeRutValue(rut)
+  if (!isCleanRut(cleanRut)) return fail<string>(rut, shouldThrow)
 
   return cleanRut
 }
@@ -113,18 +221,10 @@ function decompose(rut: string, options?: SafeOptions): DecomposedRut | null {
 /**
  * Checks if a string has a valid RUT format (without validating the verifier digit).
  * Useful for quick format validation in UI before full validation.
- * @param {string} rut - The string to check.
+ * @param {unknown} rut - The value to check.
  * @returns {boolean} True if the string looks like a RUT format, false otherwise.
  */
-const isRutLike = (rut: string): boolean => patterns.rutLike.test(rut)
-
-/**
- * Checks if a RUT matches suspicious patterns (e.g., 11.111.111-1, 22.222.222-2).
- * These RUTs are technically valid but often used as placeholder/test data.
- * @param {string} rut - The RUT string to check.
- * @returns {boolean} True if the RUT is suspicious, false otherwise.
- */
-const isSuspicious = (rut: string): boolean => patterns.suspicious.test(rut)
+const isRutLike = (rut: unknown): boolean => parseRutLike(rut) !== null
 
 /**
  * Calculates the verifier digit for a given RUT body.
@@ -140,29 +240,10 @@ function calculateVerifier(rutBody: string, options: { throwOnError: true }): Ve
 function calculateVerifier(rutBody: string, options?: SafeOptions): VerifierDigit | null
 function calculateVerifier(rutBody: string, options?: SafeOptions): VerifierDigit | null {
   const throwOpt = withThrowOption(options?.throwOnError)
+  const cleanedRut = normalizeRutBody(rutBody)
 
-  // Use cleanRaw since we're validating a body (7-8 digits), not a complete RUT (8-9 chars)
-  const cleanedRut = cleanRaw(rutBody)
-
-  // Body should be 7-8 digits (not 8-9 like complete RUT)
-  if (cleanedRut.length < 7 || cleanedRut.length > 8) {
-    if (throwOpt.throwOnError) throw new Error(getInvalidRutError(rutBody))
-    return null
-  }
-
-  // Body should only contain digits (no K allowed in body)
-  if (!/^\d+$/.test(cleanedRut)) {
-    if (throwOpt.throwOnError) throw new Error(getInvalidRutError(rutBody))
-    return null
-  }
-
-  const sum = cleanedRut
-    .split('')
-    .reverse()
-    .reduce((acc, digit, index) => acc + Number(digit) * ((index % 6) + 2), 0)
-
-  const checkDigit = 11 - (sum % 11)
-  return (checkDigit === 11 ? '0' : checkDigit === 10 ? 'K' : checkDigit.toString()) as VerifierDigit
+  if (cleanedRut === null) return fail<VerifierDigit>(rutBody, throwOpt.throwOnError)
+  return calculateVerifierForBody(cleanedRut)
 }
 
 /**
@@ -173,17 +254,11 @@ function calculateVerifier(rutBody: string, options?: SafeOptions): VerifierDigi
  * @returns {boolean} True if the RUT is valid, false otherwise.
  */
 const validate = (rut: unknown, options?: ValidateOptions): boolean => {
-  if (typeof rut !== 'string' || rut.length === 0) return false
-  if (!isRutLike(rut)) return false
-  if (options?.strict && isSuspicious(rut)) return false
-
-  const decomposed = decompose(rut, { throwOnError: false })
+  const decomposed = parseRutLike(rut)
   if (!decomposed) return false
+  if (options?.strict && isSuspicious(decomposed.body)) return false
 
-  const calculatedVerifier = calculateVerifier(decomposed.body, { throwOnError: false })
-  if (!calculatedVerifier) return false
-
-  return calculatedVerifier === decomposed.verifier
+  return calculateVerifierForBody(decomposed.body) === decomposed.verifier
 }
 
 /**
@@ -213,18 +288,16 @@ function format(rut: string, options?: FormatOptions): string | null {
     throwOnError: options?.throwOnError ?? true,
   }
 
+  if (typeof rut !== 'string') return fail<string>(rut, opts.throwOnError)
   if (rut.length === 0) return ''
 
-  // Incremental mode: format progressively without length validation
   if (opts.incremental) {
     const rawClean = cleanRaw(rut)
     if (rawClean.length === 0) return ''
 
-    // For short inputs (< 8 chars), only add dots, no hyphen
     if (rawClean.length < MIN_RUT_LENGTH) {
       if (!opts.dots || rawClean.length <= 3) return rawClean
 
-      // Add dots every 3 digits from right
       let result = rawClean.slice(-3)
       for (let i = 3; i < rawClean.length; i += 3) {
         const start = rawClean.length - 3 - i < 0 ? 0 : rawClean.length - 3 - i
@@ -233,25 +306,23 @@ function format(rut: string, options?: FormatOptions): string | null {
       return result
     }
 
-    // For complete RUTs (8+ chars), add hyphen before verifier and dots
-    let result = rawClean.slice(-1) // Verifier digit
-    result = rawClean.slice(-4, -1) + '-' + result // 3 digits + hyphen + verifier
-
+    let result = rawClean.slice(-4, -1) + '-' + rawClean.slice(-1)
     for (let i = 4; i < rawClean.length; i += 3) {
       const start = rawClean.length - 3 - i < 0 ? 0 : rawClean.length - 3 - i
-      if (opts.dots) {
-        result = rawClean.slice(start, rawClean.length - i) + '.' + result
-      } else {
-        result = rawClean.slice(start, rawClean.length - i) + result
-      }
+      result = opts.dots
+        ? rawClean.slice(start, rawClean.length - i) + '.' + result
+        : rawClean.slice(start, rawClean.length - i) + result
     }
 
     return result
   }
 
-  // Non-incremental mode: validate length
   const cleanRut = clean(rut, withThrowOption(opts.throwOnError))
   if (cleanRut === null) return null
+
+  const body = cleanRut.slice(0, -1)
+  const verifier = cleanRut.slice(-1)
+  if (calculateVerifierForBody(body) !== verifier) return fail<string>(rut, opts.throwOnError)
 
   if (opts.dots) {
     let result = cleanRut.slice(-4, -1) + '-' + cleanRut.substring(cleanRut.length - 1)
@@ -265,11 +336,16 @@ function format(rut: string, options?: FormatOptions): string | null {
 
 /**
  * Generates a random valid RUT string.
+ * Uses Web Crypto when available, and falls back to Math.random in older runtimes.
  * @returns {string} A randomly generated, valid RUT string.
  */
 const generate = (): string => {
-  const body = Math.floor(10000003 + Math.random() * 90000000).toString()
-  const verifier = calculateVerifier(body)
+  let body = randomIntInclusive(MIN_GENERATED_BODY, MAX_GENERATED_BODY).toString()
+  while (isSuspicious(body)) {
+    body = randomIntInclusive(MIN_GENERATED_BODY, MAX_GENERATED_BODY).toString()
+  }
+
+  const verifier = calculateVerifierForBody(body)
   return format(body + verifier)
 }
 

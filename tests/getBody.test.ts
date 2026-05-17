@@ -73,6 +73,11 @@ describe('getBody function', () => {
       expect(getBody('invalid', { throwOnError: false })).toBeNull()
     })
 
+    test('returns null for non-string inputs', () => {
+      expect(getBody(123456789 as any, { throwOnError: false })).toBeNull()
+      expect(getBody(null as any, { throwOnError: false })).toBeNull()
+    })
+
     test('returns body when valid', () => {
       expect(getBody('18.972.631-7', { throwOnError: false })).toBe('18972631')
       expect(getBody('9.068.826-K', { throwOnError: false })).toBe('9068826')

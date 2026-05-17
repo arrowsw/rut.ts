@@ -68,6 +68,8 @@ describe('validate', () => {
     test('invalidates RUT in incorrect format', () => {
       expect(validate('abcdefghi')).toBeFalsy()
       expect(validate('12,345,678-5')).toBeFalsy() // Commas not supported
+      expect(validate('12.345678-5')).toBeFalsy()
+      expect(validate('12345.678-5')).toBeFalsy()
     })
 
     test('invalidates empty RUT', () => {
@@ -82,6 +84,7 @@ describe('validate', () => {
       expect(validate('123')).toBeFalsy()
       expect(validate('1234567')).toBeFalsy()
       expect(validate('12345678901')).toBeFalsy()
+      expect(validate(`${'0'.repeat(128)}x`)).toBeFalsy()
     })
 
     test('invalidates RUT with K not at the end', () => {
@@ -100,6 +103,8 @@ describe('validate', () => {
       expect(validate('11.111.111-1', { strict: true })).toBeFalsy()
       expect(validate('22.222.222-2', { strict: true })).toBeFalsy()
       expect(validate('33.333.333-3', { strict: true })).toBeFalsy()
+      expect(validate('8.888.888-K', { strict: true })).toBeFalsy()
+      expect(validate('8888888K', { strict: true })).toBeFalsy()
     })
 
     test('validates suspicious RUT if strict is false or not provided', () => {
@@ -142,6 +147,9 @@ describe('isRutLike', () => {
     expect(isRutLike('abcdefghi')).toBeFalsy()
     expect(isRutLike('')).toBeFalsy()
     expect(isRutLike('12.34.56-7')).toBeFalsy()
+    expect(isRutLike('12.345678-5')).toBeFalsy()
+    expect(isRutLike('12345.678-5')).toBeFalsy()
+    expect(isRutLike('1'.repeat(128))).toBeFalsy()
   })
 
   test('Returns true for RUTs with leading zeros', () => {
@@ -150,6 +158,8 @@ describe('isRutLike', () => {
   })
 
   test('Returns false for non-string inputs', () => {
-    expect(isRutLike('' as any)).toBeFalsy()
+    expect(isRutLike(123456789 as any)).toBeFalsy()
+    expect(isRutLike(null as any)).toBeFalsy()
+    expect(isRutLike(undefined as any)).toBeFalsy()
   })
 })

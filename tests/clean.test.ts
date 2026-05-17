@@ -23,6 +23,12 @@ describe('Test Suite: clean', () => {
       expect(clean('KK345678', { throwOnError: false })).toBeNull()
     })
 
+    test('Returns null for non-string inputs', () => {
+      expect(clean(123456789 as any, { throwOnError: false })).toBeNull()
+      expect(clean(null as any, { throwOnError: false })).toBeNull()
+      expect(clean(undefined as any, { throwOnError: false })).toBeNull()
+    })
+
     test('Returns cleaned RUT when valid', () => {
       expect(clean('12.345.678-k', { throwOnError: false })).toBe('12345678K')
       expect(clean('9.068.826-K', { throwOnError: false })).toBe('9068826K')
@@ -71,6 +77,11 @@ describe('Test Suite: clean', () => {
     test('Throws error with empty string', () => {
       expect(() => clean('')).toThrow()
       expect(() => clean('   ')).toThrow()
+    })
+
+    test('Throws a generic error without echoing the RUT value', () => {
+      expect(() => clean('123')).toThrow('Invalid RUT input')
+      expect(() => clean('123')).not.toThrow(/123/)
     })
 
     test('Throws error with RUTs that are too long or too short', () => {

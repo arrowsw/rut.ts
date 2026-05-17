@@ -7,8 +7,8 @@ Calculates the verifier digit for a given RUT body using the Modulo 11 algorithm
 ```typescript copy
 import { calculateVerifier } from 'rut.ts'
 
-calculateVerifier('12345678')  // '5'
-calculateVerifier('24657622')  // 'K'
+calculateVerifier('12345678') // '5'
+calculateVerifier('24657622') // 'K'
 ```
 
 ## Type Signature
@@ -30,6 +30,7 @@ type VerifierDigit = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' |
 ## Return Value
 
 Returns `VerifierDigit` or `null`:
+
 - A single character: `'0'` to `'9'` or `'K'`
 - `null` if invalid (only in safe mode)
 
@@ -53,13 +54,13 @@ The function implements the **Modulo 11 algorithm**:
 import { calculateVerifier } from 'rut.ts'
 
 // Numeric verifiers
-calculateVerifier('12345678')  // '5'
-calculateVerifier('18972631')  // '7'
-calculateVerifier('11111111')  // '1'
+calculateVerifier('12345678') // '5'
+calculateVerifier('18972631') // '7'
+calculateVerifier('11111111') // '1'
 
 // K verifier (when result is 10)
-calculateVerifier('24657622')  // 'K'
-calculateVerifier('14625621')  // 'K'
+calculateVerifier('24657622') // 'K'
+calculateVerifier('14625621') // 'K'
 ```
 
 ### Building a Complete RUT
@@ -71,7 +72,7 @@ const body = '12345678'
 const verifier = calculateVerifier(body)
 const completeRut = format(body + verifier)
 
-console.log(completeRut)  // '12.345.678-5'
+console.log(completeRut) // '12.345.678-5'
 ```
 
 ### Safe Mode
@@ -81,14 +82,14 @@ import { calculateVerifier } from 'rut.ts'
 
 // Without safe mode (throws)
 try {
-  calculateVerifier('123')  // Too short
+  calculateVerifier('123') // Too short
 } catch (error) {
   console.error(error)
 }
 
 // With safe mode (returns null)
 const result = calculateVerifier('123', { throwOnError: false })
-console.log(result)  // null
+console.log(result) // null
 
 // Useful for form validation
 const handleBodyInput = (body: string) => {
@@ -106,12 +107,15 @@ const handleBodyInput = (body: string) => {
 ```typescript copy
 import { calculateVerifier } from 'rut.ts'
 
-// Accepts formatted input (dots/hyphens removed)
-calculateVerifier('18.972.631')  // '7'
-calculateVerifier('18-972-631')  // '7'
+// Accepts standard body separators (dots/hyphens removed)
+calculateVerifier('18.972.631') // '7'
+calculateVerifier('18-972-631') // '7'
 
 // Handles leading zeros
-calculateVerifier('018972631')  // '7' (zeros removed)
+calculateVerifier('018972631') // '7' (zeros removed)
+
+// Rejects letters and unsupported punctuation
+calculateVerifier('18abc972631', { throwOnError: false }) // null
 ```
 
 ## Validation Rules
@@ -120,7 +124,8 @@ The function validates:
 
 - ✅ Body must be 7-8 digits after cleaning leading zeros
 - ✅ Only numeric characters allowed (no K in body)
-- ✅ Formatting characters (dots, hyphens) are automatically removed
+- ✅ Formatting characters (dots, hyphens, whitespace) are automatically removed
+- ✅ Letters and unsupported punctuation are rejected instead of silently stripped
 
 ## Use Cases
 

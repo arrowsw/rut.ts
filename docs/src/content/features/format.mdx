@@ -1,13 +1,13 @@
 # format()
 
-Converts RUT strings into a standardized format with dots and hyphens.
+Converts valid RUT strings into a standardized format with dots and hyphens.
 
 ## Basic Usage
 
 ```typescript copy
 import { format } from 'rut.ts'
 
-format('123456785')                  // '12.345.678-5'
+format('123456785') // '12.345.678-5'
 format('123456785', { dots: false }) // '12345678-5'
 ```
 
@@ -35,7 +35,7 @@ type FormatOptions = {
 
 ## Return Value
 
-- **Default mode**: Returns formatted RUT string or throws error
+- **Default mode**: Returns formatted RUT string or throws error when the complete RUT is malformed or has the wrong verifier
 - **Safe mode**: Returns formatted RUT string or `null` if invalid
 - **Incremental mode**: Always returns a string (even for partial/invalid inputs)
 
@@ -47,17 +47,20 @@ type FormatOptions = {
 import { format } from 'rut.ts'
 
 // With dots (default)
-format('123456785')  // '12.345.678-5'
-format('9068826K')   // '9.068.826-K'
+format('123456785') // '12.345.678-5'
+format('9068826K') // '9.068.826-K'
 
 // Without dots
-format('123456785', { dots: false })  // '12345678-5'
-format('9068826K', { dots: false })   // '9068826-K'
+format('123456785', { dots: false }) // '12345678-5'
+format('9068826K', { dots: false }) // '9068826-K'
 
 // Handles any input format
-format('12.345.678-5')   // '12.345.678-5' (already formatted)
-format('12-345-678-5')   // '12.345.678-5'
-format('  123456785  ')  // '12.345.678-5'
+format('12.345.678-5') // '12.345.678-5' (already formatted)
+format('12-345-678-5') // '12.345.678-5'
+format('  123456785  ') // '12.345.678-5'
+
+// Rejects wrong verifier digits in non-incremental mode
+format('123456789', { throwOnError: false }) // null
 ```
 
 ### Incremental Formatting
@@ -68,21 +71,22 @@ Perfect for real-time formatting as users type:
 import { format } from 'rut.ts'
 
 // Progressive formatting
-format('1', { incremental: true })         // '1'
-format('12', { incremental: true })        // '12'
-format('123', { incremental: true })       // '123'
-format('1234', { incremental: true })      // '1.234'
-format('12345', { incremental: true })     // '12.345'
-format('123456', { incremental: true })    // '123.456'
-format('1234567', { incremental: true })   // '1.234.567'
-format('12345678', { incremental: true })  // '1.234.567-8' (hyphen at 8+ chars)
+format('1', { incremental: true }) // '1'
+format('12', { incremental: true }) // '12'
+format('123', { incremental: true }) // '123'
+format('1234', { incremental: true }) // '1.234'
+format('12345', { incremental: true }) // '12.345'
+format('123456', { incremental: true }) // '123.456'
+format('1234567', { incremental: true }) // '1.234.567'
+format('12345678', { incremental: true }) // '1.234.567-8' (hyphen at 8+ chars)
 format('123456785', { incremental: true }) // '12.345.678-5'
 ```
 
 import { Callout } from 'nextra/components'
 
 <Callout type="warning">
-  **Important:** Incremental mode formats even incomplete/invalid RUTs. Always use `validate()` to check the final RUT before processing.
+  **Important:** Incremental mode formats even incomplete/invalid RUTs. Always use `validate()` to check the final RUT
+  before processing.
 </Callout>
 
 ### React Example
@@ -102,7 +106,7 @@ function RutInput() {
   }
 
   return (
-    <input 
+    <input
       value={rut}
       onChange={handleChange}
       placeholder="12.345.678-5"
@@ -121,7 +125,7 @@ import { format } from 'rut.ts'
 try {
   format('123')
 } catch (error) {
-  console.error(error) // Error: String "123" is not valid as a RUT input
+  console.error(error) // Error: Invalid RUT input
 }
 
 // With safe mode (returns null)
@@ -129,21 +133,23 @@ const result = format('123', { throwOnError: false })
 console.log(result) // null
 
 // Combined with other options
-format('invalid', { 
-  dots: false, 
-  throwOnError: false 
+format('invalid', {
+  dots: false,
+  throwOnError: false,
 }) // null
 ```
 
 ## When to Use Incremental Mode
 
 ### ✅ Use incremental when:
+
 - Formatting user input in real-time as they type
 - Providing immediate visual feedback in form fields
 - Improving UX with progressive formatting
 - Building RUT input components
 
 ### ❌ Don't use incremental when:
+
 - Formatting already complete/stored RUTs (use default `format()`)
 - Validating RUTs (use `validate()` instead)
 - Processing final form submission values
@@ -155,16 +161,16 @@ format('invalid', {
 import { format } from 'rut.ts'
 
 // Empty string
-format('')  // ''
+format('') // ''
 
 // Leading zeros removed
-format('00012345678')  // '1.234.567-8'
+format('000123456785') // '12.345.678-5'
 
 // K verifier (uppercase)
-format('12345678k')  // '12.345.678-K'
+format('14625621k') // '14.625.621-K'
 
 // Already formatted
-format('12.345.678-5')  // '12.345.678-5'
+format('12.345.678-5') // '12.345.678-5'
 ```
 
 ## Use Cases
