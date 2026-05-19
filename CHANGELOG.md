@@ -2,20 +2,50 @@
 
 All notable changes to **rut.ts** are documented in this file.
 
-This changelog starts at **v4.0.0**. Releases `3.4.0` and earlier predate this
-file and were not formally tracked here. From this version onward, every release
-documents its changes and—when applicable—its breaking changes.
+From **v4.0.0** onward, every release documents its changes here in full
+and—when applicable—its breaking changes. Entries for `3.4.0` and earlier
+predate this file and are **reconstructed from git history and npm publish
+metadata**: they are accurate but summarized, not exhaustive.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [4.0.1] - 2026-05-18
+
+Documentation-only release. **No code or API changes** — the published library
+is byte-for-byte identical to `4.0.0`.
+
+### Changed
+
+- Rewrote the README as a value-first overview: trust badges, a quick-start
+  example up front, and the security hardening framed as a strength. The
+  `3.x → 4.x` upgrade note was moved out of the hero and softened.
+- Reconstructed the pre-`4.0.0` version history (`1.0.0` → `3.4.0`) in this
+  changelog from git history and npm publish metadata.
 
 ## [4.0.0] - 2026-05-17
 
 A **major, breaking** release that hardens the library for high-volume
 RUT/RUN **identity validation in production**. The Modulo 11 algorithm itself
-was already correct; this release hardens the input perimeter and tightens the
-"clean / format / validate" contract. Upgrading from `3.x` requires reading the
-**Breaking changes** section below.
+was already correct and is **unchanged** — this release hardens the input
+perimeter and tightens the "clean / format / validate" contract.
+
+### Do I need to change anything?
+
+**For most projects, no.** If you call `validate(rut)` /
+`validate(rut, { strict: true })` on normally formatted RUTs, or `format()` on
+already-valid RUTs, v4 is a **drop-in upgrade**: correct RUTs validate and
+format exactly as before.
+
+You only need to act if you rely on one of these specific `3.x` behaviors:
+
+- `format()` "repairing" a number with a **wrong verifier digit** (now returns `null` / throws).
+- Passing **non-canonical dot grouping** (`12.345678-5`, `12345.678-5`, …) to `validate()` / `isRutLike()` (now rejected).
+- **Pattern-matching on error message text** (messages are now the constant `Invalid RUT input`).
+- Catching a `TypeError` from helpers on **non-string input** (they now honor `throwOnError`).
+
+If none of those apply, you can upgrade without code changes. The
+[Migration guide](#migration-guide-3x--400) at the end walks through each case.
 
 ### Why this is a major release
 
@@ -37,7 +67,7 @@ major version bump even though several items are security fixes.
   canonical-dotted). Adversarial input is now rejected in well under 1 ms.
   The `64` cap is a security bound, **not** a format rule: a real RUT is ~9
   significant chars (~12 formatted), so the cap never rejects a realistically
-  formatted RUT — it only refuses to *look at* implausibly long strings. It is
+  formatted RUT — it only refuses to _look at_ implausibly long strings. It is
   deliberately set well above any legitimate input yet small enough that the
   bounded patterns can never receive an attack string.
 - **`strict` bypass with uppercase `K`.**
@@ -66,6 +96,7 @@ major version bump even though several items are security fixes.
    Shapes accepted by `3.x` but **now rejected**: `12.345678-5`,
    `12345.678-5`, `1.2.3.4.5.6.7.8-5`, internal spaces (`12 345 678 5`), any
    input longer than 64 characters.
+
 3. **`validate()` / `isRutLike()` now `trim()` the input.** Surrounding
    whitespace is tolerated (`'  12.345.678-5  '` → `true`). This is a
    relaxation but is still a behavior change.
@@ -95,8 +126,8 @@ major version bump even though several items are security fixes.
   that `calculateVerifier()` rejected (producing an occasional throw). The
   range is now a correct inclusive `10000000–99999999`.
 - **`generate()` could emit repeated-digit placeholders.** It now skips
-  all-same-digit bodies, so generated RUTs also pass `validate(_, { strict:
-  true })`.
+  all-same-digit bodies, so generated RUTs also pass
+  `validate(_, { strict: true })`.
 
 ### Added
 
@@ -128,6 +159,10 @@ major version bump even though several items are security fixes.
 
 ### Migration guide (3.x → 4.0.0)
 
+Most upgrades are a version bump with no code changes (see
+[Do I need to change anything?](#do-i-need-to-change-anything)). The points
+below cover the cases that do need attention:
+
 - **Validation gate:** use `validate(input, { strict: true })` as the
   acceptance check. Do **not** treat the output of `clean()` / `decompose()` as
   proof of validity — they remain intentionally permissive normalizers.
@@ -142,4 +177,74 @@ major version bump even though several items are security fixes.
 - **Error handling:** stop matching on error message text; switch to
   `throwOnError: false` and check for `null`.
 
+## [3.0.0] – [3.4.0] - 2026-01-23
+
+> Published as a same-day sequence (`3.0.0` → `3.4.0`). The individual
+> increments were not separately documented; the changes below are aggregated
+> for the 3.x line.
+
+### Added
+
+- **Safe Mode** — `throwOnError: false` on the safe functions to return `null`
+  instead of throwing.
+- **`isRutLike()`** — cheap RUT-shape check without full validation.
+- **Exported TypeScript types** — `DecomposedRut`, `FormatOptions`,
+  `SafeOptions`, `ValidateOptions`, `VerifierDigit`.
+
+### Changed
+
+- **ESM-first & tree-shakeable** — added `"type": "module"`,
+  `"sideEffects": false`, and an `exports` map so consumers only bundle what
+  they import.
+- **Reduced bundle size** and optimized the core functions.
+- Broadened validation/normalization flexibility and expanded the test suite.
+
+## [2.1.0] - 2024-05-29
+
+### Changed
+
+- Improved `format()` behavior; documentation updates.
+
+## [2.0.0] - 2024-05-28
+
+### Changed
+
+- Internal refactor for code reuse; JSDoc added across the public API.
+- `calculateVerifier` exported and documented.
+
+### Added
+
+- Expanded test suite.
+
+## [1.4.0] - 2024-05-16
+
+### Added
+
+- Error-message helpers `getInvalidRutError` / `getInvalidRutBodyError`.
+- Minified build, additional tests, and a Nextra documentation site.
+
+## [1.2.0] - 2024-05-03
+
+> "Huge update" — the public API took its current shape.
+
+### Changed
+
+- Renamed `check` → `validate` and `getVerifierDigit` → `calculateVerifier`.
+
+### Added
+
+- `getBody`, `getVerifier`, `decompose`, and `generate`.
+
+## [1.0.0] - 2022-03-11
+
+- Initial public release. Core API: `check`, `clean`, `format`,
+  `getVerifierDigit`.
+
+> Interim publishes `1.1.0`, `1.3.0`, and `1.3.1` (Apr–May 2024) were
+> incremental steps between the entries above and are not detailed separately.
+
+[4.0.1]: https://github.com/arrowsw/rut.ts/releases/tag/v4.0.1
 [4.0.0]: https://github.com/arrowsw/rut.ts/releases/tag/v4.0.0
+[3.4.0]: https://github.com/arrowsw/rut.ts/releases/tag/3.4.0
+[2.1.0]: https://github.com/arrowsw/rut.ts/releases/tag/v2.1.0
+[2.0.0]: https://github.com/arrowsw/rut.ts/releases/tag/v2.0.0

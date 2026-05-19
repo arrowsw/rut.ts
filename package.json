@@ -1,6 +1,6 @@
 {
   "name": "rut.ts",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "type": "module",
   "description": "Handle chilean RUT values with ease.",
   "author": "arrowsw",

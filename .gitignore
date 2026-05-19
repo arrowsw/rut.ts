@@ -11,3 +11,6 @@ docs/out
 docs/.out
 docs/.idea
 docs/.vscode
+
+# Website is maintained in its own separate repository
+www/
