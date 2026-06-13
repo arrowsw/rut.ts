@@ -39,12 +39,8 @@ addition is backward compatible.
 - **`generate()` options** — `{ bodyLength?: 7 | 8, format?: 'dotted' | 'compact'
   | 'hyphen', count?: number }`. `count` returns an array; `bodyLength: 7` now
   produces real 7-digit RUTs. `generate()` with no arguments is unchanged.
-- **`rut.ts/zod` subpath** — a ready-made Zod integration exporting `rut` (a
-  schema that validates and normalizes to canonical form) and `rutSchema(options)`
-  (with `strict`/`message`). `zod` is an optional peer dependency, and the subpath
-  adds no weight for consumers who don't import it.
-- **Source maps are now published** (`*.min.js.map`, with the TypeScript sources
-  embedded), so consumers can debug and audit the shipped minified code against
+- **Source maps are now published** (`*.min.js.map`) alongside the original
+  `src/*.ts`, so consumers can debug and audit the shipped minified code against
   the original source.
 
 ### Changed

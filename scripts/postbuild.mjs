@@ -1,13 +1,12 @@
-// Post-build: minify each compiled entry with a sources-embedded source map,
-// point the `zod` subpath at the minified core, drop the unminified output, and
-// write the CJS subpackage marker.
+// Post-build: minify the compiled entry with a source map (referencing the
+// shipped src), drop the unminified output, and write the CJS subpackage marker.
 //
-// Replaces the old chained `minify:* && afterbuild` npm scripts so the build can
-// handle multiple entries (index + zod) without per-entry shell commands.
+// Uses the terser API (rather than chained `terser` shell commands) so the
+// source-map options stay readable.
 import { readFile, writeFile, rm } from 'node:fs/promises'
 import { minify } from 'terser'
 
-const ENTRIES = ['index', 'zod']
+const ENTRIES = ['index']
 const DIRS = ['dist/esm', 'dist/cjs']
 
 for (const dir of DIRS) {
@@ -15,16 +14,8 @@ for (const dir of DIRS) {
     const jsPath = `${dir}/${entry}.js`
     const mapPath = `${jsPath}.map`
 
-    let code = await readFile(jsPath, 'utf8')
+    const code = await readFile(jsPath, 'utf8')
     const inputMap = await readFile(mapPath, 'utf8').catch(() => undefined)
-
-    // The `zod` entry imports the core (`./index`). After minification the core
-    // lives in `index.min.js`, so retarget the specifier before minifying (so
-    // the source map stays accurate). Handles both ESM (`'./index'`) and the
-    // CJS require (`"./index"`).
-    if (entry === 'zod') {
-      code = code.replaceAll("'./index'", "'./index.min.js'").replaceAll('"./index"', '"./index.min.js"')
-    }
 
     const result = await minify(
       { [`${entry}.js`]: code },

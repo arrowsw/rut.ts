@@ -95,28 +95,6 @@ generate({ bodyLength: 7, format: 'hyphen' }) // '7788862-4'
 generate({ count: 3 }) // ['…', '…', '…']
 ```
 
-### Zod integration (`rut.ts/zod`)
-
-A ready-made [Zod](https://zod.dev) schema lives in the `rut.ts/zod` subpath, so
-you don't have to hand-roll the refinement. `zod` is an **optional peer
-dependency** — the subpath adds no weight if you don't import it.
-
-```typescript
-import { z } from 'zod'
-import { rut, rutSchema } from 'rut.ts/zod'
-
-const SignupForm = z.object({
-  name: z.string(),
-  taxId: rut, // validates and normalizes to '12.345.678-5'
-})
-
-SignupForm.parse({ name: 'Ada', taxId: '123456785' })
-// → { name: 'Ada', taxId: '12.345.678-5' }
-
-// Strict mode (rejects placeholder RUTs) and a custom message
-const Strict = rutSchema({ strict: true, message: 'RUT inválido' })
-```
-
 > 📚 Full guides and live examples: **[rut.arrowsw.com](https://rut.arrowsw.com/)**
 
 ## Features

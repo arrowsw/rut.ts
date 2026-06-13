@@ -19,16 +19,6 @@
         "default": "./dist/cjs/index.min.js"
       }
     },
-    "./zod": {
-      "import": {
-        "types": "./dist/esm/zod.d.ts",
-        "default": "./dist/esm/zod.min.js"
-      },
-      "require": {
-        "types": "./dist/cjs/zod.d.ts",
-        "default": "./dist/cjs/zod.min.js"
-      }
-    },
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -61,16 +51,7 @@
     "terser": "5.46.0",
     "ts-jest": "29.4.6",
     "typescript": "5.9.3",
-    "typescript-eslint": "8.53.1",
-    "zod": "4.4.3"
-  },
-  "peerDependencies": {
-    "zod": ">=3"
-  },
-  "peerDependenciesMeta": {
-    "zod": {
-      "optional": true
-    }
+    "typescript-eslint": "8.53.1"
   },
   "engines": {
     "node": ">=14"

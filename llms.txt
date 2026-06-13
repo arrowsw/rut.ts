@@ -38,7 +38,6 @@ Key technical details:
 - [mask()](https://github.com/arrowsw/rut.ts/blob/canary/README.md): Mask a RUT for safe logging/display, keeping only the leading group and verifier (`12.345.678-5` → `12.***.***-5`)
 - [equals()](https://github.com/arrowsw/rut.ts/blob/canary/README.md): Compare two RUTs for equality after normalization, so different shapes of the same RUT match
 - [InvalidRutError](https://github.com/arrowsw/rut.ts/blob/canary/README.md): Typed error (class with `code: 'INVALID_RUT'`) thrown by the safe helpers; catch it instead of matching the message text
-- [rut.ts/zod subpath](https://github.com/arrowsw/rut.ts/blob/canary/README.md): Optional Zod integration exporting `rut` (validates + normalizes) and `rutSchema(options)`; `zod` is an optional peer dependency
 
 ## Practical Examples
 
@@ -55,7 +54,7 @@ Key technical details:
 
 ## Optional
 
-- [Testing Guide](https://rut.arrowsw.com/docs/testing): Information about the test suite with 528 tests (including property-based tests via fast-check) covering all edge cases, plus a seeded differential harness against v3.4.0 and periodic Stryker mutation testing (~90% on the hot path)
+- [Testing Guide](https://rut.arrowsw.com/docs/testing): Information about the test suite with 514 tests (including property-based tests via fast-check) covering all edge cases, plus a seeded differential harness against v3.4.0 and periodic Stryker mutation testing (~90% on the hot path)
 - [Contributing Guide](https://rut.arrowsw.com/docs/contributing): How to contribute to the project, development setup, and coding standards
 - [GitHub Issues](https://github.com/arrowsw/rut.ts/issues): Report bugs, request features, or ask questions
 - [Package Size Analysis](https://pkg-size.dev/rut.ts): Detailed breakdown of package size and bundle analysis
