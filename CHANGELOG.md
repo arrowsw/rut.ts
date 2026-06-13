@@ -12,11 +12,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [4.1.0] - 2026-06-13
 
-A **feature** release. New safe-parse / branded-type / typed-error APIs and
-generation options, plus a bug-fix that aligns the validation contract with what
-`4.0.0` already documented and a round of build, packaging and CI hardening. The
-Modulo 11 algorithm is unchanged and existing code keeps working — every
-addition is backward compatible.
+A **feature** release that broadens the API and hardens the build, packaging, CI
+and test suite — **without touching the Modulo 11 algorithm**. Existing code
+keeps working; every addition is backward compatible. The single behavior change
+is a **bug fix** that brings `validate()` in line with the input contract
+`4.0.0` already documented.
+
+### Upgrade notes
+
+- **Most projects need no changes.** `validate`, `format`, `clean`, `decompose`
+  and `generate()` behave exactly as before for the three documented shapes.
+- **One stricter case:** `validate('12.345.6785')` / `isRutLike('12.345.6785')`
+  (canonical dot grouping but **no verifier hyphen**) now return `false`. That
+  shape was never documented as valid; if a dataset stored it, insert the `-`
+  before the verifier (or strip the dots to the compact form) first. See
+  [Fixed](#fixed).
+- **TypeScript only:** `DecomposedRut.verifier` narrows from `string` to
+  `VerifierDigit`. Reading the value is unaffected — only code that *constructs*
+  a `DecomposedRut` by hand may need the narrower type.
 
 ### Added
 

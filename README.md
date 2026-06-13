@@ -73,7 +73,7 @@ function persist(value: string) {
 
 // Typed errors — branch on the class/code, never on message text
 try {
-  clean('not-a-rut')
+  mask('not-a-rut') // any safe helper throws InvalidRutError in default mode
 } catch (err) {
   if (err instanceof InvalidRutError) err.code // 'INVALID_RUT'
 }
