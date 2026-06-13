@@ -10,6 +10,106 @@ metadata**: they are accurate but summarized, not exhaustive.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.0] - 2026-06-13
+
+A **feature** release that broadens the API and hardens the build, packaging, CI
+and test suite — **without touching the Modulo 11 algorithm**. Existing code
+keeps working; every addition is backward compatible. The single behavior change
+is a **bug fix** that brings `validate()` in line with the input contract
+`4.0.0` already documented.
+
+### Upgrade notes
+
+- **Most projects need no changes.** `validate`, `format`, `clean`, `decompose`
+  and `generate()` behave exactly as before for the three documented shapes.
+- **One stricter case:** `validate('12.345.6785')` / `isRutLike('12.345.6785')`
+  (canonical dot grouping but **no verifier hyphen**) now return `false`. That
+  shape was never documented as valid; if a dataset stored it, insert the `-`
+  before the verifier (or strip the dots to the compact form) first. See
+  [Fixed](#fixed).
+- **TypeScript only:** `DecomposedRut.verifier` narrows from `string` to
+  `VerifierDigit`. Reading the value is unaffected — only code that *constructs*
+  a `DecomposedRut` by hand may need the narrower type.
+
+### Added
+
+- **`InvalidRutError`** — a typed error (exported class) thrown by the safe
+  helpers in their default mode. Branch on `err instanceof InvalidRutError` or
+  `err.code === 'INVALID_RUT'` instead of matching the message text. The message
+  is still the constant `Invalid RUT input`, so the anti-PII guarantee holds.
+  `getInvalidRutError` is now `@deprecated` in its favor.
+- **`isValidRut(input, options?): input is Rut`** — a type guard that narrows a
+  value to the new exported branded **`Rut`** type, letting "this string was
+  validated" flow through the type system.
+- **`mask(rut, options?)`** — masks a RUT for safe logging/display, keeping only
+  the leading group and verifier: `12.345.678-5` → `12.***.***-5`.
+- **`equals(a, b)`** — normalized RUT comparison, so different shapes of the same
+  RUT match: `equals('12.345.678-5', '123456785')` → `true`.
+- **`generate()` options** — `{ bodyLength?: 7 | 8, format?: 'dotted' | 'compact'
+  | 'hyphen', count?: number }`. `count` returns an array; `bodyLength: 7` now
+  produces real 7-digit RUTs. `generate()` with no arguments is unchanged.
+- **Source maps are now published** (`*.min.js.map`) alongside the original
+  `src/*.ts`, so consumers can debug and audit the shipped minified code against
+  the original source.
+
+### Changed
+
+- **`DecomposedRut.verifier` is now `VerifierDigit`** (was `string`), matching
+  what `getVerifier()` already returned. This narrows the type; code that reads
+  the value is unaffected, code that constructs the object by hand may need the
+  narrower type (semver-minor).
+- **`decompose()` is single-pass.** It now calls `clean()` once instead of
+  `getBody()` + `getVerifier()` (which each re-ran `clean()`), halving the
+  parsing work and dropping the dead `verifier === null` branch.
+- **Build target raised to ES2020.** The previous `ES6` target down-levelled
+  `?.`/`??` into verbose ternaries; native ES2020 syntax is ~6.5% smaller
+  minified and parses faster (it partly offsets the size of the new APIs above;
+  the published bundle is ~5.1 kB min / ~1.9 kB gzip ESM). `engines.node` is now
+  declared as `>=14` (Web Crypto in `generate()` stays optional via the
+  `Math.random` fallback). Dropped the `importHelpers` option (no `tslib`
+  runtime dependency could ever be required) and the stray `jsx`/`lib: ["dom"]`
+  settings.
+- **Richer package metadata** for discoverability and tooling: `homepage`,
+  `bugs`, `engines`, expanded `keywords`, and a `"./package.json"` entry in
+  `exports`.
+
+### Fixed
+
+- **`validate()` / `isRutLike()` now require the hyphen in the dotted shape.**
+  An optional hyphen in the dotted pattern (`…\.\d{3}-?[\dkK]`) accepted a
+  fourth, undocumented shape — dotted digits with the verifier glued onto the
+  last group, e.g. `12.345.6785` — even though the `4.0.0` contract (README,
+  `llms.txt`, this changelog) only ever listed `12.345.678-5`.
+  `validate('12.345.6785')` and `isRutLike('12.345.6785')` now correctly return
+  `false`. The three documented shapes — compact (`123456785`), compact + hyphen
+  (`12345678-5`) and canonical dotted (`12.345.678-5`) — are unaffected. If a
+  dataset somehow stored the dotted no-hyphen shape, normalize it (insert the
+  `-` before the verifier, or strip the dots to compact) before validating.
+- **`llms.txt` is now published in the npm tarball.** It had been silently
+  excluded: when `package.json` declares a `files` allowlist it takes
+  precedence over `.npmignore`, so the `!llms.txt` rule never applied. `llms.txt`
+  was added to `files` and the now-redundant `.npmignore` removed, leaving a
+  single source of truth for what ships.
+
+### Internal
+
+- The gated 1,000,000-case differential corpus no longer runs during a plain
+  `npm test`. Jest executes the body of a `describe.skip` block at collection
+  time, so the full run — and its `tests/differential-report.md` write — fired
+  on every invocation, dirtying the working tree. It now runs inside `beforeAll`,
+  gated behind `RUN_DIFFERENTIAL=1` as designed. `npm test` only pays the 1k
+  mini-corpus.
+- **Coverage is now enforced.** `jest.config.cjs` measures `src/**/*.ts` (never
+  the built `dist`) with a regression-ratchet `coverageThreshold`, and the
+  `testRegex`/`transform` were tightened to `.ts`/`.js` only.
+- **CI hardening.** Added Node 24 to the test matrix, Deno and Bun smoke jobs
+  that import the real ESM build (backing the "runs in Deno and Bun" claim), a
+  `size-limit` bundle guard, a coverage job, a tag-triggered publish workflow
+  with npm provenance, and a `SECURITY.md` disclosure policy.
+- **Deeper verification.** Added property-based tests (fast-check) for the core
+  invariants and a Stryker mutation-testing setup (`npm run mutation`, run
+  periodically rather than in CI) — the Modulo 11 hot path scores ~90%.
+
 ## [4.0.1] - 2026-05-18
 
 Documentation-only release. **No code or API changes** — the published library
@@ -243,6 +343,7 @@ below cover the cases that do need attention:
 > Interim publishes `1.1.0`, `1.3.0`, and `1.3.1` (Apr–May 2024) were
 > incremental steps between the entries above and are not detailed separately.
 
+[4.1.0]: https://github.com/arrowsw/rut.ts/releases/tag/v4.1.0
 [4.0.1]: https://github.com/arrowsw/rut.ts/releases/tag/v4.0.1
 [4.0.0]: https://github.com/arrowsw/rut.ts/releases/tag/v4.0.0
 [3.4.0]: https://github.com/arrowsw/rut.ts/releases/tag/3.4.0

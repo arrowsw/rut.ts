@@ -84,6 +84,8 @@ describe('validate', () => {
       ['12,345,678-5', 'comma grouping (v4: rejected)'],
       ['12.345678-5', 'non-canonical grouping (v4 breaking change #2)'],
       ['12345.678-5', 'non-canonical grouping (v4 breaking change #2)'],
+      ['12.345.6785', 'dotted without hyphen (the verifier must be separated by "-")'],
+      ['1.234.5674', 'dotted without hyphen (7-digit body)'],
       ['1.2.3.4.5.6.7.8-5', 'every-digit-dotted (v4 breaking change #2)'],
       ['12 345 678 5', 'internal whitespace (only the three shapes are accepted)'],
       ['K2345678-5', 'K not at end (leading)'],
@@ -99,6 +101,20 @@ describe('validate', () => {
       ['1234567', 'just under min length after leading-zero strip'],
       ['12345678901', 'too long but under 64-char cap'],
     ])('rejects out-of-range length: %p (%s)', (rut) => {
+      expect(validate(rut)).toBe(false)
+    })
+
+    // Anchoring: a valid RUT embedded in surrounding non-whitespace garbage must
+    // NOT validate. These pin the `^`/`$` anchors of all three shape patterns
+    // (whose removal would otherwise let a valid substring through).
+    test.each([
+      ['xx123456785', 'leading garbage before compact'],
+      ['123456785xx', 'trailing garbage after compact'],
+      ['xx12345678-5', 'leading garbage before compact+hyphen'],
+      ['12345678-5xx', 'trailing garbage after compact+hyphen'],
+      ['xx12.345.678-5', 'leading garbage before dotted'],
+      ['12.345.678-5xx', 'trailing garbage after dotted'],
+    ])('rejects a valid RUT wrapped in non-whitespace garbage: %p (%s)', (rut) => {
       expect(validate(rut)).toBe(false)
     })
   })
@@ -219,6 +235,7 @@ describe('isRutLike', () => {
     ['12.34.56-7', 'wrong dot grouping'],
     ['12.345678-5', 'non-canonical grouping'],
     ['12345.678-5', 'non-canonical grouping'],
+    ['12.345.6785', 'dotted without hyphen'],
     ['1'.repeat(128), 'over 64-char cap'],
     ['12 345 678 5', 'internal whitespace'],
     ['K2345678-5', 'K not at end'],

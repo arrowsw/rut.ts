@@ -41,6 +41,10 @@ const EXPECTED_NAMES = [
   'generate',
   'isRutLike',
   'getInvalidRutError',
+  'isValidRut',
+  'mask',
+  'equals',
+  'InvalidRutError',
 ] as const
 
 const distExists = existsSync(cjsEntry) && existsSync(esmEntry)

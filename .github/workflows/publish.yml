@@ -1,0 +1,54 @@
+name: Publish
+
+# Release ritual:
+#   npm version patch        # bumps package.json + creates the vX.Y.Z tag
+#   git push --follow-tags   # this workflow builds, tests, and publishes
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  id-token: write # required for npm provenance (OIDC)
+
+jobs:
+  publish:
+    name: publish to npm (with provenance)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+
+      # OIDC trusted publishing needs npm >= 11.5.1; Node 22 ships an older npm.
+      - name: Upgrade npm (OIDC trusted publishing support)
+        run: npm install -g npm@latest
+
+      - name: Install dependencies (runs prepare -> build)
+        run: npm ci
+
+      # Refuse to publish if the pushed tag (vX.Y.Z) and package.json disagree.
+      - name: Verify tag matches package.json version
+        run: |
+          PKG_VERSION="v$(node -p "require('./package.json').version")"
+          if [ "$PKG_VERSION" != "${GITHUB_REF_NAME}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match package.json (${PKG_VERSION})"
+            exit 1
+          fi
+
+      # `npm publish` runs the package's own gates via lifecycle scripts:
+      #   prepublishOnly -> test + prettier + lint
+      #   prepare        -> build (tsc ESM + CJS + terser)
+      #
+      # Auth is tokenless: this repo + `publish.yml` are registered as a Trusted
+      # Publisher on the npm package, so npm exchanges the GitHub OIDC token
+      # (id-token: write, above) for a short-lived publish credential — no
+      # NPM_TOKEN secret exists to leak. Provenance (a signed Sigstore
+      # attestation linking this tarball to the source commit and workflow run)
+      # is emitted automatically; --provenance keeps it explicit.
+      - name: Publish to npm (tokenless OIDC + provenance)
+        run: npm publish --provenance --access public

@@ -18,8 +18,9 @@ jobs:
       fail-fast: false
       matrix:
         # The library uses Web Crypto (`globalThis.crypto`) in generate(),
-        # available since Node 19. Test the active LTS lines.
-        node: [20, 22]
+        # available since Node 19, with a Math.random fallback for older runtimes.
+        # Test the active LTS lines (24 is LTS since Oct 2025).
+        node: [20, 22, 24]
     steps:
       - uses: actions/checkout@v4
 
@@ -41,6 +42,93 @@ jobs:
       # corpus. Fails if any non-documented behavior change is introduced.
       - name: Differential (behavior regression guard)
         run: npm run test:differential
+
+  coverage:
+    name: coverage (threshold guard)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Enforces the coverageThreshold in jest.config.cjs (measured against
+      # src/**/*.ts, never the built dist). Fails the build on regressions.
+      - name: Tests with coverage
+        run: npm test -- --coverage
+
+  size:
+    name: size-limit (bundle guard)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      # Fails if the published bundle grows past the limits in .size-limit.json.
+      - name: Check bundle size
+        run: npm run size
+
+  smoke-deno:
+    name: smoke (Deno)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies and build
+        run: npm ci
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      # Proves the README "runs in Deno" claim: load the real ESM build and
+      # validate a RUT (and confirm the restricted shape is rejected).
+      - name: Deno imports the ESM build and validates a RUT
+        run: |
+          deno eval "const m = await import('./dist/esm/index.min.js'); if (m.validate('12.345.678-5') !== true || m.validate('12.345.6785') !== false) { console.error('Deno smoke FAILED'); Deno.exit(1); } console.log('Deno smoke ok');"
+
+  smoke-bun:
+    name: smoke (Bun)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies and build
+        run: npm ci
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # Proves the README "runs in Bun" claim against the real ESM build.
+      - name: Bun imports the ESM build and validates a RUT
+        run: |
+          bun -e "const m = await import('./dist/esm/index.min.js'); if (m.validate('12.345.678-5') !== true || m.validate('12.345.6785') !== false) { console.error('Bun smoke FAILED'); process.exit(1); } console.log('Bun smoke ok');"
 
   lint:
     name: lint

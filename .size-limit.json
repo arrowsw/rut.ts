@@ -1,0 +1,12 @@
+[
+  {
+    "name": "ESM (min + brotli)",
+    "path": "dist/esm/index.min.js",
+    "limit": "1.9 kB"
+  },
+  {
+    "name": "CJS (min + brotli)",
+    "path": "dist/cjs/index.min.js",
+    "limit": "2 kB"
+  }
+]

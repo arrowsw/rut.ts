@@ -4,15 +4,19 @@ import {
   calculateVerifier,
   clean,
   decompose,
+  equals,
   format,
   generate,
   getBody,
   getInvalidRutError,
   getVerifier,
+  InvalidRutError,
   isRutLike,
+  isValidRut,
+  mask,
   validate,
 } from '../src'
-import type { DecomposedRut, FormatOptions, SafeOptions, ValidateOptions, VerifierDigit } from '../src'
+import type { DecomposedRut, FormatOptions, Rut, SafeOptions, ValidateOptions, VerifierDigit } from '../src'
 
 /**
  * Type-level regression tests for the v4 overload contract.
@@ -78,8 +82,35 @@ const _typecheck = () => {
   expectTypeOf(isRutLike('x')).toEqualTypeOf<boolean>()
   expectTypeOf(isRutLike(null as unknown)).toEqualTypeOf<boolean>()
 
-  // ── generate ───────────────────────────────────────────────────────────
+  // ── generate (count → array overload) ──────────────────────────────────
   expectTypeOf(generate()).toEqualTypeOf<string>()
+  expectTypeOf(generate({ format: 'compact' })).toEqualTypeOf<string>()
+  expectTypeOf(generate({ bodyLength: 7 })).toEqualTypeOf<string>()
+  expectTypeOf(generate({ count: 3 })).toEqualTypeOf<string[]>()
+  expectTypeOf(generate({ count: 3, format: 'hyphen', bodyLength: 7 })).toEqualTypeOf<string[]>()
+
+  // ── isValidRut (type guard narrows unknown → Rut) ──────────────────────
+  expectTypeOf(isValidRut('x')).toEqualTypeOf<boolean>()
+  const maybeRut: unknown = '12.345.678-5'
+  if (isValidRut(maybeRut)) {
+    expectTypeOf(maybeRut).toEqualTypeOf<Rut>()
+  }
+  // A branded Rut is still a string.
+  expectTypeOf<Rut>().toExtend<string>()
+
+  // ── mask (same throwOnError overloads as clean) ────────────────────────
+  expectTypeOf(mask('x')).toEqualTypeOf<string>()
+  expectTypeOf(mask('x', { throwOnError: false })).toEqualTypeOf<string | null>()
+  expectTypeOf(mask('x', { throwOnError: true })).toEqualTypeOf<string>()
+
+  // ── equals (predicate over unknown) ────────────────────────────────────
+  expectTypeOf(equals('a', 'b')).toEqualTypeOf<boolean>()
+  expectTypeOf(equals(1 as unknown, 2 as unknown)).toEqualTypeOf<boolean>()
+
+  // ── InvalidRutError (typed Error subclass with a literal code) ─────────
+  expectTypeOf(new InvalidRutError()).toExtend<Error>()
+  expectTypeOf(new InvalidRutError().code).toEqualTypeOf<'INVALID_RUT'>()
+  expectTypeOf(new InvalidRutError().message).toEqualTypeOf<string>()
 
   // ── getInvalidRutError (accepts unknown, returns the constant string) ──
   expectTypeOf(getInvalidRutError()).toEqualTypeOf<string>()
@@ -94,7 +125,7 @@ const _typecheck = () => {
   }>()
   expectTypeOf<ValidateOptions>().toMatchObjectType<{ strict?: boolean }>()
   expectTypeOf<SafeOptions>().toMatchObjectType<{ throwOnError?: boolean }>()
-  expectTypeOf<DecomposedRut>().toMatchObjectType<{ body: string; verifier: string }>()
+  expectTypeOf<DecomposedRut>().toMatchObjectType<{ body: string; verifier: VerifierDigit }>()
 
   // ── VerifierDigit is the closed union ──────────────────────────────────
   expectTypeOf<VerifierDigit>().toEqualTypeOf<'0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | 'K'>()

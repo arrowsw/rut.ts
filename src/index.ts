@@ -6,13 +6,44 @@ type ValidationPatterns = {
   bodySeparators: RegExp
   bodyDigits: RegExp
 }
-type DecomposedRut = { body: string; verifier: string }
+type VerifierDigit = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | 'K'
+type DecomposedRut = { body: string; verifier: VerifierDigit }
 type FormatOptions = { incremental?: boolean; dots?: boolean; throwOnError?: boolean }
 type SafeOptions = { throwOnError?: boolean }
 type ValidateOptions = { strict?: boolean }
-type VerifierDigit = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | 'K'
 
-export const getInvalidRutError = (_rut?: unknown): string => 'Invalid RUT input'
+// Branded "validated RUT" type. The brand is phantom (erased at runtime); the
+// only way to mint a `Rut` is by narrowing with the `isValidRut()` type guard,
+// so a `Rut` in the type system always denotes a string that has passed
+// `validate()`.
+declare const RUT_BRAND: unique symbol
+type Rut = string & { readonly [RUT_BRAND]: true }
+
+type GenerateFormat = 'dotted' | 'compact' | 'hyphen'
+type GenerateOptions = { bodyLength?: 7 | 8; format?: GenerateFormat; count?: number }
+
+const INVALID_RUT_MESSAGE = 'Invalid RUT input'
+
+/**
+ * Typed error thrown by the safe helpers in their default (throwing) mode.
+ * Catch it with `instanceof InvalidRutError` or by checking `err.code`
+ * (`'INVALID_RUT'`) instead of matching on the message text. The message is the
+ * constant `Invalid RUT input`, so no RUT value ever leaks into logs or traces.
+ */
+export class InvalidRutError extends Error {
+  readonly code = 'INVALID_RUT' as const
+  constructor() {
+    super(INVALID_RUT_MESSAGE)
+    this.name = 'InvalidRutError'
+  }
+}
+
+/**
+ * @deprecated Since 4.1.0. Prefer catching {@link InvalidRutError}
+ * (`err instanceof InvalidRutError` or `err.code === 'INVALID_RUT'`). Retained
+ * for v3 compatibility; always returns the constant generic message.
+ */
+export const getInvalidRutError = (_rut?: unknown): string => INVALID_RUT_MESSAGE
 
 /** Helper to create SafeOptions with explicit throwOnError boolean */
 const withThrowOption = (throwOnError?: boolean): { throwOnError: boolean } => ({
@@ -38,19 +69,24 @@ const MAX_BODY_LENGTH = 8
 const MAX_RUT_INPUT_LENGTH = 64
 const MIN_GENERATED_BODY = 10000000
 const MAX_GENERATED_BODY = 99999999
+const MIN_GENERATED_BODY_7 = 1000000
+const MAX_GENERATED_BODY_7 = 9999999
 const UINT32_RANGE = 0x100000000
 
 const patterns: ValidationPatterns = {
   compact: /^0*\d{7,8}[\dkK]$/,
   compactWithHyphen: /^0*\d{7,8}-[\dkK]$/,
-  dotted: /^0*\d{1,3}\.\d{3}\.\d{3}-?[\dkK]$/,
+  dotted: /^0*\d{1,3}\.\d{3}\.\d{3}-[\dkK]$/,
   invalidRutChars: /[^0-9kK]+/g,
   bodySeparators: /[.\-\s]+/g,
   bodyDigits: /^\d+$/,
 }
 
-const fail = <T>(input: unknown, shouldThrow: boolean): T | null => {
-  if (shouldThrow) throw new Error(getInvalidRutError(input))
+// `_input` is the offending value. It is deliberately never read: keeping it in
+// the signature documents that callers hand it over and `fail` refuses to echo
+// it into the thrown error (the anti-PII guarantee).
+const fail = <T>(_input: unknown, shouldThrow: boolean): T | null => {
+  if (shouldThrow) throw new InvalidRutError()
   return null
 }
 
@@ -75,7 +111,10 @@ const isCleanRut = (rut: string): boolean => {
 
 const isVerifierDigit = (value: string): value is VerifierDigit => /^[\dK]$/.test(value)
 
-const parseRutLike = (rut: unknown): DecomposedRut | null => {
+// Internal parse result — verifier stays a plain `string` here so the hot path
+// (validate) does not pay an extra `isVerifierDigit` regex. The public
+// `DecomposedRut` narrows it to `VerifierDigit` in `decompose()`.
+const parseRutLike = (rut: unknown): { body: string; verifier: string } | null => {
   if (!isBoundedString(rut)) return null
 
   // `isBoundedString` already capped the raw length; trimming can only shrink it,
@@ -246,12 +285,17 @@ function decompose(rut: string, options: { throwOnError: false }): DecomposedRut
 function decompose(rut: string, options: { throwOnError: true }): DecomposedRut
 function decompose(rut: string, options?: SafeOptions): DecomposedRut | null
 function decompose(rut: string, options?: SafeOptions): DecomposedRut | null {
-  const throwOpt = withThrowOption(options?.throwOnError)
-  const body = getBody(rut, throwOpt)
-  const verifier = getVerifier(rut, throwOpt)
+  // Single-pass: `clean()` normalizes and validates once. (Previously this
+  // called getBody + getVerifier, each of which re-ran clean — double work.)
+  const cleaned = clean(rut, withThrowOption(options?.throwOnError))
+  if (cleaned === null) return null
 
-  if (body === null || verifier === null) return null
-  return { body, verifier }
+  const verifier = cleaned.slice(-1)
+  // `isCleanRut` (inside clean) already guaranteed the last char is [\dK], so
+  // the false branch is defensive only.
+  return isVerifierDigit(verifier)
+    ? { body: cleaned.slice(0, -1), verifier }
+    : fail<DecomposedRut>(rut, options?.throwOnError ?? true)
 }
 
 /**
@@ -370,20 +414,109 @@ function format(rut: string, options?: FormatOptions): string | null {
   return cleanRut.slice(0, -1) + '-' + cleanRut.substring(cleanRut.length - 1)
 }
 
-/**
- * Generates a random valid RUT string.
- * Uses Web Crypto when available, and falls back to Math.random in older runtimes.
- * @returns {string} A randomly generated, valid RUT string.
- */
-const generate = (): string => {
-  let body = randomIntInclusive(MIN_GENERATED_BODY, MAX_GENERATED_BODY).toString()
+const generateOne = (bodyLength: 7 | 8, outputFormat: GenerateFormat): string => {
+  const [min, max] =
+    bodyLength === 7 ? [MIN_GENERATED_BODY_7, MAX_GENERATED_BODY_7] : [MIN_GENERATED_BODY, MAX_GENERATED_BODY]
+
+  let body = randomIntInclusive(min, max).toString()
   while (isSuspicious(body)) {
-    body = randomIntInclusive(MIN_GENERATED_BODY, MAX_GENERATED_BODY).toString()
+    body = randomIntInclusive(min, max).toString()
   }
 
-  const verifier = calculateVerifierForBody(body)
-  return format(body + verifier)
+  const compact = body + calculateVerifierForBody(body)
+  if (outputFormat === 'compact') return compact
+  if (outputFormat === 'hyphen') return format(compact, { dots: false })
+  return format(compact)
 }
 
-export { validate, clean, format, calculateVerifier, getBody, getVerifier, decompose, generate, isRutLike }
-export type { DecomposedRut, FormatOptions, SafeOptions, ValidateOptions, VerifierDigit }
+/**
+ * Generates random valid RUT string(s).
+ * Uses Web Crypto when available, and falls back to Math.random in older runtimes.
+ * @param {GenerateOptions} [options] - Generation options.
+ * @param {7 | 8} [options.bodyLength=8] - Number of body digits to generate.
+ * @param {'dotted' | 'compact' | 'hyphen'} [options.format='dotted'] - Output shape:
+ *   `'dotted'` → `12.345.678-5`, `'hyphen'` → `12345678-5`, `'compact'` → `123456785`.
+ * @param {number} [options.count] - When provided, returns an array of that many RUTs instead of one.
+ * @returns {string | string[]} A valid RUT, or an array of them when `count` is given.
+ */
+function generate(options: GenerateOptions & { count: number }): string[]
+function generate(options?: Omit<GenerateOptions, 'count'>): string
+function generate(options?: GenerateOptions): string | string[] {
+  const bodyLength = options?.bodyLength ?? 8
+  const outputFormat = options?.format ?? 'dotted'
+
+  if (options?.count === undefined) return generateOne(bodyLength, outputFormat)
+  return Array.from({ length: options.count }, () => generateOne(bodyLength, outputFormat))
+}
+
+/**
+ * Type guard: narrows `rut` to the branded {@link Rut} type when it is a valid RUT.
+ * Lets the type system propagate "this string was validated".
+ * @param {unknown} rut - The value to check.
+ * @param {ValidateOptions} [options] - Validation options (e.g. `{ strict: true }`).
+ * @returns {boolean} True (and narrows to `Rut`) if valid, false otherwise.
+ */
+const isValidRut = (rut: unknown, options?: ValidateOptions): rut is Rut => validate(rut, options)
+
+/**
+ * Masks a RUT for safe logging/display, keeping only the leading group and the
+ * verifier: `12.345.678-5` → `12.***.***-5`. Useful alongside the library's
+ * anti-PII posture. Validates the shape (not the Modulo 11 verifier) first.
+ * @param {string} rut - The RUT string to mask.
+ * @param {SafeOptions} [options] - Configuration options.
+ * @param {boolean} [options.throwOnError=true] - If true (default), throws for invalid RUTs. If false, returns null.
+ * @returns {string | null} The masked RUT, or null if invalid and throwOnError is false.
+ * @throws {InvalidRutError} If the RUT is not valid and throwOnError is true.
+ */
+function mask(rut: string): string
+function mask(rut: string, options: { throwOnError: false }): string | null
+function mask(rut: string, options: { throwOnError: true }): string
+function mask(rut: string, options?: SafeOptions): string | null
+function mask(rut: string, options?: SafeOptions): string | null {
+  const cleaned = clean(rut, withThrowOption(options?.throwOnError))
+  if (cleaned === null) return null
+
+  const body = cleaned.slice(0, -1)
+  const verifier = cleaned.slice(-1)
+  const head = body.slice(0, body.length - 6) // 1 digit for a 7-digit body, 2 for an 8-digit body
+  return `${head}.***.***-${verifier}`
+}
+
+/**
+ * Compares two RUTs for equality after normalization, so different shapes of the
+ * same RUT match: `equals('12.345.678-5', '123456785')` → true. Returns false if
+ * either argument is not a structurally valid RUT.
+ * @param {unknown} a - First RUT.
+ * @param {unknown} b - Second RUT.
+ * @returns {boolean} True if both normalize to the same RUT, false otherwise.
+ */
+const equals = (a: unknown, b: unknown): boolean => {
+  if (typeof a !== 'string' || typeof b !== 'string') return false
+  const normalizedA = clean(a, { throwOnError: false })
+  return normalizedA !== null && normalizedA === clean(b, { throwOnError: false })
+}
+
+export {
+  validate,
+  clean,
+  format,
+  calculateVerifier,
+  getBody,
+  getVerifier,
+  decompose,
+  generate,
+  isRutLike,
+  isValidRut,
+  mask,
+  equals,
+}
+export type {
+  DecomposedRut,
+  FormatOptions,
+  SafeOptions,
+  ValidateOptions,
+  VerifierDigit,
+  Rut,
+  GenerateOptions,
+  GenerateFormat,
+}

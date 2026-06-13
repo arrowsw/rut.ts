@@ -1,4 +1,7 @@
 dist/
+coverage/
+reports/
+.stryker-tmp/
 .idea/
 .vscode/
 node_modules

@@ -319,16 +319,24 @@ const CORPUS = Number(process.env.DIFF_CORPUS ?? 1_000_000)
 ;(FULL ? describe : describe.skip)('differential v3.4.0 vs v4.0.0 (full corpus)', () => {
   jest.setTimeout(120_000)
 
-  const result = runDifferential(CORPUS)
+  // Run inside beforeAll, NOT in the describe body: Jest executes the body of a
+  // `describe.skip` block during collection but skips its hooks, so computing the
+  // 1M-case corpus here keeps `npm test` from running it (and rewriting the
+  // report on disk) when the full suite is gated off.
+  let result: ReturnType<typeof runDifferential>
+  beforeAll(() => {
+    result = runDifferential(CORPUS)
+  })
 
   test('canonical-valid inputs never regress (no false negatives on accepted shapes)', () => {
-    // Regressions are only allowed in shapes that v4.0.0 *intentionally and
+    // Regressions are only allowed in shapes that v4 *intentionally and
     // documentably* rejects (see CHANGELOG "Changed (Breaking)"):
     //  - non-canonical dot grouping (#2)
+    //  - dotted body without the verifier hyphen (4.1.0 fix)
     //  - inputs longer than the 64-char cap (#2)
     // The every-digit-dotted / internal-spaces / comma-separated shapes were
     // already rejected by 3.4.0 too, so they must NOT appear here.
-    const allowed = new Set(['noncanonical-grouping', 'len-65-over-cap'])
+    const allowed = new Set(['noncanonical-grouping', 'dotted-no-hyphen', 'len-65-over-cap'])
     const unexpected = result.regressionShapes.filter((s) => !allowed.has(s))
     console.log(JSON.stringify(result, null, 2))
     expect(unexpected).toEqual([])
@@ -374,7 +382,7 @@ const CORPUS = Number(process.env.DIFF_CORPUS ?? 1_000_000)
    * `RUN_DIFFERENTIAL=1`; this block does NOT write any report.
    */
   test('mini-corpus (1k cases) only diverges on documented shapes', () => {
-    const allowedRegressions = new Set(['noncanonical-grouping', 'len-65-over-cap'])
+    const allowedRegressions = new Set(['noncanonical-grouping', 'dotted-no-hyphen', 'len-65-over-cap'])
     const allowedNewAccepts = new Set(['surrounding-space'])
 
     const regressionShapes = new Set<string>()
@@ -402,6 +410,7 @@ const CORPUS = Number(process.env.DIFF_CORPUS ?? 1_000_000)
         { input: `${dotted}-${dv}`, shape: 'canonical-dotted' },
         { input: `  ${dotted}-${dv}  `, shape: 'surrounding-space' },
         { input: `${body.slice(0, 2)}.${body.slice(2)}-${dv}`, shape: 'noncanonical-grouping' },
+        { input: `${dotted}${dv}`, shape: 'dotted-no-hyphen' },
       ]
       for (const { input, shape } of rows) {
         const o = legacyValidate(input)

@@ -58,16 +58,51 @@ isRutLike('12.345.678-5') // true
 format('abc', { throwOnError: false }) // null
 ```
 
+### Branded types & typed errors
+
+```typescript
+import { isValidRut, InvalidRutError, mask, equals, generate } from 'rut.ts'
+import type { Rut } from 'rut.ts'
+
+// Type guard — narrows `unknown`/`string` to the branded `Rut`
+function persist(value: string) {
+  if (isValidRut(value)) {
+    const rut: Rut = value // ✅ the type system knows it was validated
+  }
+}
+
+// Typed errors — branch on the class/code, never on message text
+try {
+  mask('not-a-rut') // any safe helper throws InvalidRutError in default mode
+} catch (err) {
+  if (err instanceof InvalidRutError) err.code // 'INVALID_RUT'
+}
+
+// Mask for safe logging, and compare across shapes
+mask('12.345.678-5') // '12.***.***-5'
+equals('12.345.678-5', '123456785') // true
+
+// Generation options
+generate() // '29.561.896-5'  (8-digit dotted, default)
+generate({ format: 'compact' }) // '233715913'
+generate({ bodyLength: 7, format: 'hyphen' }) // '7788862-4'
+generate({ count: 3 }) // ['…', '…', '…']
+```
+
 > 📚 Full guides and live examples: **[rut.arrowsw.com](https://rut.arrowsw.com/)**
 
 ## Features
 
 - **Validation** — verifier check with bounded input parsing and an optional `strict` mode that rejects placeholder/repeated-digit RUTs.
+- **Branded types** — `isValidRut()` (type guard) narrows input to a branded `Rut`, so "this string was validated" flows through the type system.
+- **Typed errors** — `InvalidRutError` (with a stable `code`) instead of message-matching.
 - **Formatting** — standardized output, with or without dots.
 - **Incremental formatting** — progressive formatting as the user types, ideal for form inputs.
+- **Masking** — `mask()` produces `12.***.***-5` for safe logging/display.
+- **Comparison** — `equals()` compares RUTs across different shapes.
 - **Cleaning** — permissively strip extraneous characters and leading zeros.
 - **Decomposition** — split a RUT into its body and verifier digit.
-- **Generation** — cryptographically-backed random valid RUTs for tests (Web Crypto when available).
+- **Generation** — cryptographically-backed random valid RUTs, with `bodyLength`, `format` and `count` options (Web Crypto when available).
 - **Calculate verifier** — compute the verifier digit for a given body.
 - **Format detection** — cheap `isRutLike` check without full validation.
 - **Safe mode** — every safe function supports `throwOnError: false` to return `null` instead of throwing.
@@ -107,15 +142,16 @@ formatting. That posture is the point of the library:
 `validate()` and `isRutLike()` accept **only** these shapes (optionally with
 leading zeros and surrounding whitespace, verifier `k`/`K` case-insensitive):
 
-| Shape            | Example                       | Notes                           |
-| ---------------- | ----------------------------- | ------------------------------- |
-| Compact          | `123456785`                   | 7–8 digit body + verifier       |
-| Compact + hyphen | `12345678-5`                  |                                 |
-| Canonical dotted | `12.345.678-5`, `1.234.567-4` | Chilean grouping from the right |
+| Shape            | Example                       | Notes                                  |
+| ---------------- | ----------------------------- | -------------------------------------- |
+| Compact          | `123456785`                   | 7–8 digit body + verifier              |
+| Compact + hyphen | `12345678-5`                  |                                        |
+| Canonical dotted | `12.345.678-5`, `1.234.567-4` | Chilean grouping; the `-` is required  |
 
 Anything else is rejected, **including non-canonical dot grouping** that older
-versions accepted (`12.345678-5`, `12345.678-5`, `1.2.3.4-5`), internal spaces,
-commas, and any input longer than 64 chars.
+versions accepted (`12.345678-5`, `12345.678-5`, `1.2.3.4-5`), the dotted shape
+**without its verifier hyphen** (`12.345.6785`), internal spaces, commas, and
+any input longer than 64 chars.
 
 > The 64-char limit is a **security bound, not a format rule**. A real RUT is
 > ~9 significant characters, so the cap never rejects a realistic RUT — it just
@@ -148,13 +184,23 @@ the input is complete — always `validate()` the final value.
 ## TypeScript types
 
 ```typescript
-import type { DecomposedRut, FormatOptions, SafeOptions, ValidateOptions, VerifierDigit } from 'rut.ts'
+import type {
+  DecomposedRut,
+  FormatOptions,
+  GenerateOptions,
+  Rut,
+  SafeOptions,
+  ValidateOptions,
+  VerifierDigit,
+} from 'rut.ts'
 
 // VerifierDigit:  '0' | '1' | … | '9' | 'K'
-// DecomposedRut:  { body: string; verifier: string }
+// DecomposedRut:  { body: string; verifier: VerifierDigit }
 // FormatOptions:  { incremental?: boolean; dots?: boolean; throwOnError?: boolean }
 // ValidateOptions:{ strict?: boolean }
 // SafeOptions:    { throwOnError?: boolean }
+// GenerateOptions:{ bodyLength?: 7 | 8; format?: 'dotted' | 'compact' | 'hyphen'; count?: number }
+// Rut:            string & { /* brand */ }  — a validated RUT (from isValidRut)
 ```
 
 ## Upgrading from v3
