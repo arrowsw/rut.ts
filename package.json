@@ -1,6 +1,6 @@
 {
   "name": "rut.ts",
-  "version": "4.0.1",
+  "version": "4.1.0",
   "type": "module",
   "description": "Handle chilean RUT values with ease.",
   "author": "arrowsw",
@@ -18,51 +18,80 @@
         "types": "./dist/cjs/index.d.ts",
         "default": "./dist/cjs/index.min.js"
       }
-    }
+    },
+    "./zod": {
+      "import": {
+        "types": "./dist/esm/zod.d.ts",
+        "default": "./dist/esm/zod.min.js"
+      },
+      "require": {
+        "types": "./dist/cjs/zod.d.ts",
+        "default": "./dist/cjs/zod.min.js"
+      }
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "npm run build:esm && npm run build:cjs && npm run minify && npm run afterbuild",
-    "afterbuild": "rm -rf dist/esm/index.js && rm -rf dist/cjs/index.js && echo '{\"type\":\"commonjs\"}' > dist/cjs/package.json",
+    "build": "npm run build:esm && npm run build:cjs && node scripts/postbuild.mjs",
     "build:esm": "tsc",
     "build:cjs": "tsc --module commonjs --outDir dist/cjs",
     "lint": "eslint \"{**/*,*}.{js,ts,jsx,tsx}\"",
     "prettier": "prettier --write \"{src,tests,example/src}/**/*.{js,ts,jsx,tsx}\"",
     "test": "jest --config jest.config.cjs",
     "test:differential": "RUN_DIFFERENTIAL=1 jest --config jest.config.cjs tests/differential.test.ts",
+    "size": "size-limit",
+    "mutation": "stryker run",
     "prepare": "npm run build",
-    "prepublishOnly": "npm run test && npm run prettier && npm run lint",
-    "minify:esm": "terser dist/esm/index.js -o dist/esm/index.min.js -c -m",
-    "minify:cjs": "terser dist/cjs/index.js -o dist/cjs/index.min.js -c -m",
-    "minify": "npm run minify:esm && npm run minify:cjs"
+    "prepublishOnly": "npm run test && npm run prettier && npm run lint"
   },
   "license": "MIT",
   "devDependencies": {
-    "@next/eslint-plugin-next": "16.1.4",
+    "@size-limit/file": "12.1.0",
+    "@stryker-mutator/core": "9.6.1",
+    "@stryker-mutator/jest-runner": "9.6.1",
     "@types/jest": "30.0.0",
-    "@typescript-eslint/eslint-plugin": "8.53.1",
-    "@typescript-eslint/parser": "8.53.1",
     "eslint": "9.39.2",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-prettier": "5.5.5",
-    "eslint-plugin-react": "7.37.5",
-    "eslint-plugin-react-hooks": "7.0.1",
     "expect-type": "1.3.0",
+    "fast-check": "4.8.0",
     "jest": "30.2.0",
     "prettier": "3.8.1",
+    "size-limit": "12.1.0",
     "terser": "5.46.0",
     "ts-jest": "29.4.6",
     "typescript": "5.9.3",
-    "typescript-eslint": "8.53.1"
+    "typescript-eslint": "8.53.1",
+    "zod": "4.4.3"
   },
+  "peerDependencies": {
+    "zod": ">=3"
+  },
+  "peerDependenciesMeta": {
+    "zod": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=14"
+  },
+  "homepage": "https://rut.arrowsw.com",
   "keywords": [
     "validation",
     "check",
     "verifierDigit",
+    "digito verificador",
+    "dv",
+    "modulo 11",
     "chilean",
+    "chile",
     "rut",
+    "run",
+    "rut chileno",
     "formatting",
     "node",
     "browser",
+    "typescript",
     "generate",
     "deconstruct"
   ],
@@ -70,11 +99,17 @@
     "url": "https://github.com/arrowsw/rut.ts.git",
     "type": "git"
   },
+  "bugs": {
+    "url": "https://github.com/arrowsw/rut.ts/issues"
+  },
   "files": [
     "dist/**/*.min.js",
+    "dist/**/*.min.js.map",
     "dist/**/*.d.ts",
     "dist/cjs/package.json",
+    "src/**/*.ts",
     "LICENSE",
-    "README.md"
+    "README.md",
+    "llms.txt"
   ]
 }

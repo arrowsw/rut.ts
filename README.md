@@ -58,16 +58,79 @@ isRutLike('12.345.678-5') // true
 format('abc', { throwOnError: false }) // null
 ```
 
+### Safe parsing, branded types & typed errors
+
+```typescript
+import { parseRut, isValidRut, InvalidRutError, mask, equals, generate } from 'rut.ts'
+import type { Rut } from 'rut.ts'
+
+// Safe-parse style: no throw, canonical RUT on success
+const result = parseRut('123456785')
+if (result.success) {
+  result.rut // '12.345.678-5'  (typed as the branded `Rut`)
+}
+
+// Type guard — narrows `unknown`/`string` to the branded `Rut`
+function persist(value: string) {
+  if (isValidRut(value)) {
+    const rut: Rut = value // ✅ the type system knows it was validated
+  }
+}
+
+// Typed errors — branch on the class/code, never on message text
+try {
+  clean('not-a-rut')
+} catch (err) {
+  if (err instanceof InvalidRutError) err.code // 'INVALID_RUT'
+}
+
+// Mask for safe logging, and compare across shapes
+mask('12.345.678-5') // '12.***.***-5'
+equals('12.345.678-5', '123456785') // true
+
+// Generation options
+generate() // '29.561.896-5'  (8-digit dotted, default)
+generate({ format: 'compact' }) // '233715913'
+generate({ bodyLength: 7, format: 'hyphen' }) // '7788862-4'
+generate({ count: 3 }) // ['…', '…', '…']
+```
+
+### Zod integration (`rut.ts/zod`)
+
+A ready-made [Zod](https://zod.dev) schema lives in the `rut.ts/zod` subpath, so
+you don't have to hand-roll the refinement. `zod` is an **optional peer
+dependency** — the subpath adds no weight if you don't import it.
+
+```typescript
+import { z } from 'zod'
+import { rut, rutSchema } from 'rut.ts/zod'
+
+const SignupForm = z.object({
+  name: z.string(),
+  taxId: rut, // validates and normalizes to '12.345.678-5'
+})
+
+SignupForm.parse({ name: 'Ada', taxId: '123456785' })
+// → { name: 'Ada', taxId: '12.345.678-5' }
+
+// Strict mode (rejects placeholder RUTs) and a custom message
+const Strict = rutSchema({ strict: true, message: 'RUT inválido' })
+```
+
 > 📚 Full guides and live examples: **[rut.arrowsw.com](https://rut.arrowsw.com/)**
 
 ## Features
 
 - **Validation** — verifier check with bounded input parsing and an optional `strict` mode that rejects placeholder/repeated-digit RUTs.
+- **Safe parsing & branded types** — `parseRut()` (safe-parse style) and `isValidRut()` (type guard) narrow input to a branded `Rut`, so "this string was validated" flows through the type system.
+- **Typed errors** — `InvalidRutError` (with a stable `code`) instead of message-matching.
 - **Formatting** — standardized output, with or without dots.
 - **Incremental formatting** — progressive formatting as the user types, ideal for form inputs.
+- **Masking** — `mask()` produces `12.***.***-5` for safe logging/display.
+- **Comparison** — `equals()` compares RUTs across different shapes.
 - **Cleaning** — permissively strip extraneous characters and leading zeros.
 - **Decomposition** — split a RUT into its body and verifier digit.
-- **Generation** — cryptographically-backed random valid RUTs for tests (Web Crypto when available).
+- **Generation** — cryptographically-backed random valid RUTs, with `bodyLength`, `format` and `count` options (Web Crypto when available).
 - **Calculate verifier** — compute the verifier digit for a given body.
 - **Format detection** — cheap `isRutLike` check without full validation.
 - **Safe mode** — every safe function supports `throwOnError: false` to return `null` instead of throwing.
@@ -107,15 +170,16 @@ formatting. That posture is the point of the library:
 `validate()` and `isRutLike()` accept **only** these shapes (optionally with
 leading zeros and surrounding whitespace, verifier `k`/`K` case-insensitive):
 
-| Shape            | Example                       | Notes                           |
-| ---------------- | ----------------------------- | ------------------------------- |
-| Compact          | `123456785`                   | 7–8 digit body + verifier       |
-| Compact + hyphen | `12345678-5`                  |                                 |
-| Canonical dotted | `12.345.678-5`, `1.234.567-4` | Chilean grouping from the right |
+| Shape            | Example                       | Notes                                  |
+| ---------------- | ----------------------------- | -------------------------------------- |
+| Compact          | `123456785`                   | 7–8 digit body + verifier              |
+| Compact + hyphen | `12345678-5`                  |                                        |
+| Canonical dotted | `12.345.678-5`, `1.234.567-4` | Chilean grouping; the `-` is required  |
 
 Anything else is rejected, **including non-canonical dot grouping** that older
-versions accepted (`12.345678-5`, `12345.678-5`, `1.2.3.4-5`), internal spaces,
-commas, and any input longer than 64 chars.
+versions accepted (`12.345678-5`, `12345.678-5`, `1.2.3.4-5`), the dotted shape
+**without its verifier hyphen** (`12.345.6785`), internal spaces, commas, and
+any input longer than 64 chars.
 
 > The 64-char limit is a **security bound, not a format rule**. A real RUT is
 > ~9 significant characters, so the cap never rejects a realistic RUT — it just
@@ -148,13 +212,25 @@ the input is complete — always `validate()` the final value.
 ## TypeScript types
 
 ```typescript
-import type { DecomposedRut, FormatOptions, SafeOptions, ValidateOptions, VerifierDigit } from 'rut.ts'
+import type {
+  DecomposedRut,
+  FormatOptions,
+  GenerateOptions,
+  ParseRutResult,
+  Rut,
+  SafeOptions,
+  ValidateOptions,
+  VerifierDigit,
+} from 'rut.ts'
 
 // VerifierDigit:  '0' | '1' | … | '9' | 'K'
-// DecomposedRut:  { body: string; verifier: string }
+// DecomposedRut:  { body: string; verifier: VerifierDigit }
 // FormatOptions:  { incremental?: boolean; dots?: boolean; throwOnError?: boolean }
 // ValidateOptions:{ strict?: boolean }
 // SafeOptions:    { throwOnError?: boolean }
+// GenerateOptions:{ bodyLength?: 7 | 8; format?: 'dotted' | 'compact' | 'hyphen'; count?: number }
+// Rut:            string & { /* brand */ }  — a validated RUT (from parseRut / isValidRut)
+// ParseRutResult: { success: true; rut: Rut } | { success: false }
 ```
 
 ## Upgrading from v3

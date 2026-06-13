@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing of the Modulo 11 hot path. Run manually (npm run mutation) as a periodic depth check — NOT a per-commit CI gate (it is slow and the differential/property suites already guard correctness).",
+  "packageManager": "npm",
+  "testRunner": "jest",
+  "jest": {
+    "configFile": "jest.config.cjs"
+  },
+  "mutate": ["src/index.ts"],
+  "coverageAnalysis": "perTest",
+  "reporters": ["html", "clear-text", "progress"],
+  "concurrency": 4,
+  "thresholds": {
+    "high": 90,
+    "low": 80,
+    "break": 70
+  }
+}

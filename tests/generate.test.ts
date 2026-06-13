@@ -105,4 +105,107 @@ describe('generate', () => {
       }
     })
   })
+
+  describe('options', () => {
+    test('bodyLength: 7 generates a 7-digit body (valid 7-digit RUTs)', () => {
+      for (const rut of createArray(50).map(() => generate({ bodyLength: 7 }))) {
+        expect(validate(rut)).toBe(true)
+        expect(decompose(rut).body).toHaveLength(7)
+      }
+    })
+
+    test('bodyLength: 8 (default) generates an 8-digit body', () => {
+      expect(decompose(generate({ bodyLength: 8 })).body).toHaveLength(8)
+      expect(decompose(generate()).body).toHaveLength(8)
+    })
+
+    test("format: 'compact' emits digits only (no dots, no hyphen)", () => {
+      for (const rut of createArray(20).map(() => generate({ format: 'compact' }))) {
+        expect(rut).toMatch(/^\d{8}[\dK]$/)
+        expect(validate(rut)).toBe(true)
+      }
+    })
+
+    test("format: 'hyphen' emits body-hyphen-verifier (no dots)", () => {
+      for (const rut of createArray(20).map(() => generate({ format: 'hyphen' }))) {
+        expect(rut).toMatch(/^\d{8}-[\dK]$/)
+        expect(rut).not.toContain('.')
+        expect(validate(rut)).toBe(true)
+      }
+    })
+
+    test("format: 'dotted' (default) emits the canonical dotted shape", () => {
+      expect(generate({ format: 'dotted' })).toMatch(/^\d{1,2}\.\d{3}\.\d{3}-[\dK]$/)
+    })
+
+    test('bodyLength + format combine (7-digit compact)', () => {
+      for (const rut of createArray(20).map(() => generate({ bodyLength: 7, format: 'compact' }))) {
+        expect(rut).toMatch(/^\d{7}[\dK]$/)
+        expect(validate(rut)).toBe(true)
+      }
+    })
+
+    test('count returns an array of that many valid, non-suspicious RUTs', () => {
+      const ruts = generate({ count: 25 })
+      expect(Array.isArray(ruts)).toBe(true)
+      expect(ruts).toHaveLength(25)
+      for (const rut of ruts) {
+        expect(validate(rut, { strict: true })).toBe(true)
+      }
+    })
+
+    test('count: 0 returns an empty array', () => {
+      expect(generate({ count: 0 })).toEqual([])
+    })
+
+    test('count combines with bodyLength and format', () => {
+      const ruts = generate({ count: 10, bodyLength: 7, format: 'hyphen' })
+      expect(ruts).toHaveLength(10)
+      for (const rut of ruts) {
+        expect(rut).toMatch(/^\d{7}-[\dK]$/)
+        expect(validate(rut)).toBe(true)
+      }
+    })
+  })
+
+  describe('CSPRNG unbiased rejection-sampling retry branch', () => {
+    // Unbiased rejection sampling retries whenever `getRandomValues` yields a
+    // value >= maxUnbiased (the top ~1.5% of the uint32 range for the 90,000,000
+    // body range). In real runs that fires only probabilistically, which makes
+    // branch coverage flaky. Stubbing crypto so the first draw is out-of-range
+    // and the rest are valid covers the `while (value >= maxUnbiased)` retry
+    // deterministically.
+    let originalCryptoDescriptor: PropertyDescriptor | undefined
+
+    beforeAll(() => {
+      originalCryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto')
+      let draw = 0
+      Object.defineProperty(globalThis, 'crypto', {
+        value: {
+          getRandomValues: (buffer: Uint32Array) => {
+            // First draw is rejected (0xffffffff >= maxUnbiased); every
+            // subsequent draw lands inside the unbiased window and is accepted.
+            buffer[0] = draw === 0 ? 0xffffffff : 123456789
+            draw += 1
+            return buffer
+          },
+        },
+        configurable: true,
+        writable: true,
+      })
+    })
+
+    afterAll(() => {
+      if (originalCryptoDescriptor) {
+        Object.defineProperty(globalThis, 'crypto', originalCryptoDescriptor)
+      } else {
+        delete (globalThis as unknown as { crypto?: unknown }).crypto
+      }
+    })
+
+    test('retries on an out-of-range draw and still produces a valid RUT', () => {
+      const rut = generate()
+      expect(validate(rut)).toBe(true)
+    })
+  })
 })

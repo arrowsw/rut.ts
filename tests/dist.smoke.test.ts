@@ -41,6 +41,11 @@ const EXPECTED_NAMES = [
   'generate',
   'isRutLike',
   'getInvalidRutError',
+  'parseRut',
+  'isValidRut',
+  'mask',
+  'equals',
+  'InvalidRutError',
 ] as const
 
 const distExists = existsSync(cjsEntry) && existsSync(esmEntry)
@@ -91,6 +96,16 @@ guarded('dist smoke (dual ESM + CJS package)', () => {
     }
     expect(result.validateOk).toBe(true)
     expect(result.calcOk).toBe(true)
+  })
+
+  test('zod subpath loads against the built minified core and validates (CJS)', () => {
+    // Guards the build wiring of the `rut.ts/zod` subpath — especially the
+    // post-build rewrite that points zod.min.js at ./index.min.js. zod is a
+    // devDependency here, so it resolves under the test runner.
+    const req = createRequire(__filename)
+    const zodEntry = join(distRoot, 'cjs', 'zod.min.js')
+    const { rut } = req(zodEntry) as { rut: { parse: (s: string) => string } }
+    expect(rut.parse('123456785')).toBe('12.345.678-5')
   })
 
   test('CJS and ESM expose the same set of public names', () => {
