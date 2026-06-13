@@ -64,7 +64,7 @@ is a **bug fix** that brings `validate()` in line with the input contract
 - **Build target raised to ES2020.** The previous `ES6` target down-levelled
   `?.`/`??` into verbose ternaries; native ES2020 syntax is ~6.5% smaller
   minified and parses faster (it partly offsets the size of the new APIs above;
-  the published bundle is ~5.1 kB min / ~1.9 kB gzip ESM). `engines.node` is now
+  the published bundle measures ~3.96 kB min / ~1.66 kB gzip per bundlejs). `engines.node` is now
   declared as `>=14` (Web Crypto in `generate()` stays optional via the
   `Math.random` fallback). Dropped the `importHelpers` option (no `tslib`
   runtime dependency could ever be required) and the stray `jsx`/`lib: ["dom"]`

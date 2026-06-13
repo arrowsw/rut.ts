@@ -7,7 +7,7 @@ Rut.ts provides a comprehensive set of utilities for working with Chilean RUTs -
 As of **v4.0.0** (a breaking release focused on production identity hardening), `validate()` and `isRutLike()` accept only three canonical shapes — compact (`123456785`), compact + hyphen (`12345678-5`), and canonical dotted (`12.345.678-5`, optionally with leading zeros and surrounding whitespace). The dotted shape requires its verifier hyphen: `12.345.6785` (dots but no hyphen) is rejected, as is any non-canonical dot grouping that 3.x tolerated (`12.345678-5`, `12345.678-5`). Input is capped at 64 characters as a security bound (not a format rule), and errors are a generic `Invalid RUT input` so Chilean ID values are never echoed into logs or traces. `clean()` and `decompose()` remain intentionally permissive for normalization and must not be treated as validation. Review the CHANGELOG before upgrading from 3.x.
 
 Key technical details:
-- **Size**: ~5.1KB minified, ~1.9KB gzipped (ESM build; ES2020 target)
+- **Size**: ~3.96KB minified, ~1.66KB gzipped (ESM build; ES2020 target)
 - **Zero dependencies**: Pure TypeScript implementation
 - **Safe mode**: All throwing functions support `{ throwOnError: false }` to return `null` instead of throwing
 - **Strict validation**: `validate(rut, { strict: true })` additionally rejects repeated-digit placeholder RUTs (e.g. `11.111.111-1`)
