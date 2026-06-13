@@ -41,7 +41,6 @@ const EXPECTED_NAMES = [
   'generate',
   'isRutLike',
   'getInvalidRutError',
-  'parseRut',
   'isValidRut',
   'mask',
   'equals',

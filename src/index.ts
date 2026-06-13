@@ -13,12 +13,11 @@ type SafeOptions = { throwOnError?: boolean }
 type ValidateOptions = { strict?: boolean }
 
 // Branded "validated RUT" type. The brand is phantom (erased at runtime); the
-// only way to mint a `Rut` is through `parseRut()` or by narrowing with the
-// `isValidRut()` type guard, so a `Rut` in the type system always denotes a
-// string that has passed `validate()`.
+// only way to mint a `Rut` is by narrowing with the `isValidRut()` type guard,
+// so a `Rut` in the type system always denotes a string that has passed
+// `validate()`.
 declare const RUT_BRAND: unique symbol
 type Rut = string & { readonly [RUT_BRAND]: true }
-type ParseRutResult = { success: true; rut: Rut } | { success: false }
 
 type GenerateFormat = 'dotted' | 'compact' | 'hyphen'
 type GenerateOptions = { bodyLength?: 7 | 8; format?: GenerateFormat; count?: number }
@@ -451,21 +450,6 @@ function generate(options?: GenerateOptions): string | string[] {
 }
 
 /**
- * Validates `rut` and, on success, returns its canonical (dotted) form as a
- * branded {@link Rut}. A safe-parse style alternative to chaining
- * `validate` + `clean` + `format` by hand.
- * @param {unknown} rut - The value to parse.
- * @param {ValidateOptions} [options] - Validation options (e.g. `{ strict: true }`).
- * @returns {ParseRutResult} `{ success: true, rut }` with the canonical RUT, or `{ success: false }`.
- */
-const parseRut = (rut: unknown, options?: ValidateOptions): ParseRutResult => {
-  if (!validate(rut, options)) return { success: false }
-  // `rut` passed validate(), so it is a string in one of the accepted shapes
-  // and format() cannot fail. `as Rut` is the single, intentional mint point.
-  return { success: true, rut: format(rut as string) as Rut }
-}
-
-/**
  * Type guard: narrows `rut` to the branded {@link Rut} type when it is a valid RUT.
  * Lets the type system propagate "this string was validated".
  * @param {unknown} rut - The value to check.
@@ -522,7 +506,6 @@ export {
   decompose,
   generate,
   isRutLike,
-  parseRut,
   isValidRut,
   mask,
   equals,
@@ -534,7 +517,6 @@ export type {
   ValidateOptions,
   VerifierDigit,
   Rut,
-  ParseRutResult,
   GenerateOptions,
   GenerateFormat,
 }

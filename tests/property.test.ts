@@ -1,17 +1,6 @@
 import fc from 'fast-check'
 
-import {
-  calculateVerifier,
-  clean,
-  decompose,
-  equals,
-  format,
-  isRutLike,
-  isValidRut,
-  mask,
-  parseRut,
-  validate,
-} from '../src'
+import { calculateVerifier, clean, decompose, equals, format, isRutLike, isValidRut, mask, validate } from '../src'
 
 /**
  * Property-based tests (fast-check). These complement the hand-written
@@ -100,23 +89,17 @@ describe('property: round-trips', () => {
   })
 })
 
-describe('property: parseRut / isValidRut', () => {
-  test('parseRut success ⟹ the returned rut validates and isValidRut agrees', () => {
+describe('property: isValidRut', () => {
+  test('isValidRut is true for every valid RUT', () => {
     fc.assert(
-      fc.property(validRut, (rut) => {
-        const result = parseRut(rut)
-        return result.success && validate(result.rut) && isValidRut(result.rut)
-      }),
+      fc.property(validRut, (rut) => isValidRut(rut)),
       RUNS,
     )
   })
 
-  test('parseRut and isValidRut agree with validate on arbitrary strings', () => {
+  test('isValidRut agrees with validate on arbitrary strings', () => {
     fc.assert(
-      fc.property(fc.string(), (s) => {
-        const expected = validate(s)
-        return parseRut(s).success === expected && isValidRut(s) === expected
-      }),
+      fc.property(fc.string(), (s) => isValidRut(s) === validate(s)),
       RUNS,
     )
   })

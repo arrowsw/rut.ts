@@ -14,18 +14,9 @@ import {
   isRutLike,
   isValidRut,
   mask,
-  parseRut,
   validate,
 } from '../src'
-import type {
-  DecomposedRut,
-  FormatOptions,
-  ParseRutResult,
-  Rut,
-  SafeOptions,
-  ValidateOptions,
-  VerifierDigit,
-} from '../src'
+import type { DecomposedRut, FormatOptions, Rut, SafeOptions, ValidateOptions, VerifierDigit } from '../src'
 
 /**
  * Type-level regression tests for the v4 overload contract.
@@ -97,14 +88,6 @@ const _typecheck = () => {
   expectTypeOf(generate({ bodyLength: 7 })).toEqualTypeOf<string>()
   expectTypeOf(generate({ count: 3 })).toEqualTypeOf<string[]>()
   expectTypeOf(generate({ count: 3, format: 'hyphen', bodyLength: 7 })).toEqualTypeOf<string[]>()
-
-  // ── parseRut (discriminated union with branded Rut) ────────────────────
-  expectTypeOf(parseRut('x')).toEqualTypeOf<ParseRutResult>()
-  expectTypeOf(parseRut('x', { strict: true })).toEqualTypeOf<ParseRutResult>()
-  const parsed = parseRut('x')
-  if (parsed.success) {
-    expectTypeOf(parsed.rut).toEqualTypeOf<Rut>()
-  }
 
   // ── isValidRut (type guard narrows unknown → Rut) ──────────────────────
   expectTypeOf(isValidRut('x')).toEqualTypeOf<boolean>()

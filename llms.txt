@@ -2,7 +2,7 @@
 
 > A modern TypeScript library for handling Chilean RUT (Rol Único Tributario) validation, formatting, cleaning, and generation with full type safety.
 
-Rut.ts provides a comprehensive set of utilities for working with Chilean RUTs - the unique tax identification numbers used throughout Chile. The library supports validation (including strict mode for suspicious patterns), safe parsing into a branded `Rut` type (`parseRut`) with a type guard (`isValidRut`), a typed `InvalidRutError`, formatting (both standard and incremental for real-time input), masking for safe logging (`mask`), normalized comparison (`equals`), cleaning, decomposition, configurable random generation, and verifier digit calculation. It's fully typed, tree-shakeable, supports both ESM and CommonJS, and runs in Node.js, the browser, Deno, and Bun (using Web Crypto when available). The RUT format follows the pattern `XX.XXX.XXX-Y` where the verifier digit is calculated using the Modulo 11 algorithm.
+Rut.ts provides a comprehensive set of utilities for working with Chilean RUTs - the unique tax identification numbers used throughout Chile. The library supports validation (including strict mode for suspicious patterns), a branded `Rut` type narrowed by a type guard (`isValidRut`), a typed `InvalidRutError`, formatting (both standard and incremental for real-time input), masking for safe logging (`mask`), normalized comparison (`equals`), cleaning, decomposition, configurable random generation, and verifier digit calculation. It's fully typed, tree-shakeable, supports both ESM and CommonJS, and runs in Node.js, the browser, Deno, and Bun (using Web Crypto when available). The RUT format follows the pattern `XX.XXX.XXX-Y` where the verifier digit is calculated using the Modulo 11 algorithm.
 
 As of **v4.0.0** (a breaking release focused on production identity hardening), `validate()` and `isRutLike()` accept only three canonical shapes — compact (`123456785`), compact + hyphen (`12345678-5`), and canonical dotted (`12.345.678-5`, optionally with leading zeros and surrounding whitespace). The dotted shape requires its verifier hyphen: `12.345.6785` (dots but no hyphen) is rejected, as is any non-canonical dot grouping that 3.x tolerated (`12.345678-5`, `12345.678-5`). Input is capped at 64 characters as a security bound (not a format rule), and errors are a generic `Invalid RUT input` so Chilean ID values are never echoed into logs or traces. `clean()` and `decompose()` remain intentionally permissive for normalization and must not be treated as validation. Review the CHANGELOG before upgrading from 3.x.
 
@@ -33,7 +33,6 @@ Key technical details:
 - [getBody()](https://rut.arrowsw.com/docs/features/get-body): Extract only the body (numeric part) from a formatted or unformatted RUT
 - [getVerifier()](https://rut.arrowsw.com/docs/features/get-verifier): Extract only the verifier digit from a formatted or unformatted RUT
 - [isRutLike()](https://rut.arrowsw.com/docs/features/is-rut-like): Check if a string matches RUT format without full validation
-- [parseRut()](https://github.com/arrowsw/rut.ts/blob/canary/README.md): Safe-parse style — returns `{ success: true, rut }` (canonical RUT, branded `Rut` type) or `{ success: false }`, no throw
 - [isValidRut()](https://github.com/arrowsw/rut.ts/blob/canary/README.md): Type guard that narrows a value to the branded `Rut` type when valid (supports strict mode)
 - [mask()](https://github.com/arrowsw/rut.ts/blob/canary/README.md): Mask a RUT for safe logging/display, keeping only the leading group and verifier (`12.345.678-5` → `12.***.***-5`)
 - [equals()](https://github.com/arrowsw/rut.ts/blob/canary/README.md): Compare two RUTs for equality after normalization, so different shapes of the same RUT match
@@ -49,12 +48,12 @@ Key technical details:
 ## Reference Documentation
 
 - [API Reference](https://rut.arrowsw.com/docs/api-reference): Complete API documentation with all function signatures and TypeScript types
-- [TypeScript Types](https://rut.arrowsw.com/docs/api-reference#typescript-types): Exported types including DecomposedRut, FormatOptions, ValidateOptions, SafeOptions, VerifierDigit, Rut, ParseRutResult, and GenerateOptions
+- [TypeScript Types](https://rut.arrowsw.com/docs/api-reference#typescript-types): Exported types including DecomposedRut, FormatOptions, ValidateOptions, SafeOptions, VerifierDigit, Rut, and GenerateOptions
 - [Changelog](https://github.com/arrowsw/rut.ts/blob/canary/CHANGELOG.md): Release notes and breaking changes, starting at v4.0.0
 
 ## Optional
 
-- [Testing Guide](https://rut.arrowsw.com/docs/testing): Information about the test suite with 514 tests (including property-based tests via fast-check) covering all edge cases, plus a seeded differential harness against v3.4.0 and periodic Stryker mutation testing (~90% on the hot path)
+- [Testing Guide](https://rut.arrowsw.com/docs/testing): Information about the test suite with 492 tests (including property-based tests via fast-check) covering all edge cases, plus a seeded differential harness against v3.4.0 and periodic Stryker mutation testing (~90% on the hot path)
 - [Contributing Guide](https://rut.arrowsw.com/docs/contributing): How to contribute to the project, development setup, and coding standards
 - [GitHub Issues](https://github.com/arrowsw/rut.ts/issues): Report bugs, request features, or ask questions
 - [Package Size Analysis](https://pkg-size.dev/rut.ts): Detailed breakdown of package size and bundle analysis

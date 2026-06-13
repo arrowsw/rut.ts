@@ -58,17 +58,11 @@ isRutLike('12.345.678-5') // true
 format('abc', { throwOnError: false }) // null
 ```
 
-### Safe parsing, branded types & typed errors
+### Branded types & typed errors
 
 ```typescript
-import { parseRut, isValidRut, InvalidRutError, mask, equals, generate } from 'rut.ts'
+import { isValidRut, InvalidRutError, mask, equals, generate } from 'rut.ts'
 import type { Rut } from 'rut.ts'
-
-// Safe-parse style: no throw, canonical RUT on success
-const result = parseRut('123456785')
-if (result.success) {
-  result.rut // '12.345.678-5'  (typed as the branded `Rut`)
-}
 
 // Type guard — narrows `unknown`/`string` to the branded `Rut`
 function persist(value: string) {
@@ -100,7 +94,7 @@ generate({ count: 3 }) // ['…', '…', '…']
 ## Features
 
 - **Validation** — verifier check with bounded input parsing and an optional `strict` mode that rejects placeholder/repeated-digit RUTs.
-- **Safe parsing & branded types** — `parseRut()` (safe-parse style) and `isValidRut()` (type guard) narrow input to a branded `Rut`, so "this string was validated" flows through the type system.
+- **Branded types** — `isValidRut()` (type guard) narrows input to a branded `Rut`, so "this string was validated" flows through the type system.
 - **Typed errors** — `InvalidRutError` (with a stable `code`) instead of message-matching.
 - **Formatting** — standardized output, with or without dots.
 - **Incremental formatting** — progressive formatting as the user types, ideal for form inputs.
@@ -194,7 +188,6 @@ import type {
   DecomposedRut,
   FormatOptions,
   GenerateOptions,
-  ParseRutResult,
   Rut,
   SafeOptions,
   ValidateOptions,
@@ -207,8 +200,7 @@ import type {
 // ValidateOptions:{ strict?: boolean }
 // SafeOptions:    { throwOnError?: boolean }
 // GenerateOptions:{ bodyLength?: 7 | 8; format?: 'dotted' | 'compact' | 'hyphen'; count?: number }
-// Rut:            string & { /* brand */ }  — a validated RUT (from parseRut / isValidRut)
-// ParseRutResult: { success: true; rut: Rut } | { success: false }
+// Rut:            string & { /* brand */ }  — a validated RUT (from isValidRut)
 ```
 
 ## Upgrading from v3

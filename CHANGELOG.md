@@ -25,13 +25,9 @@ addition is backward compatible.
   `err.code === 'INVALID_RUT'` instead of matching the message text. The message
   is still the constant `Invalid RUT input`, so the anti-PII guarantee holds.
   `getInvalidRutError` is now `@deprecated` in its favor.
-- **`parseRut(input, options?)`** — a safe-parse style entry point returning
-  `{ success: true, rut } | { success: false }`, where `rut` is the canonical
-  dotted form typed as the branded `Rut`. Replaces hand-chaining
-  `validate` + `clean` + `format`.
 - **`isValidRut(input, options?): input is Rut`** — a type guard that narrows a
-  value to the branded `Rut` type, letting "this string was validated" flow
-  through the type system. New exported type **`Rut`** (and `ParseRutResult`).
+  value to the new exported branded **`Rut`** type, letting "this string was
+  validated" flow through the type system.
 - **`mask(rut, options?)`** — masks a RUT for safe logging/display, keeping only
   the leading group and verifier: `12.345.678-5` → `12.***.***-5`.
 - **`equals(a, b)`** — normalized RUT comparison, so different shapes of the same
