@@ -10,6 +10,83 @@ metadata**: they are accurate but summarized, not exhaustive.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.0] - 2026-06-26
+
+A **major, breaking** release that closes a canonicalization gap in the
+acceptance predicates: `validate()`, `isValidRut()` and `isRutLike()` now reject
+**leading-zero padding**. The Modulo 11 algorithm is **unchanged** — this only
+tightens which *input strings* count as a canonical RUT.
+
+### Why
+
+A canonical Chilean RUT body never carries leading zeros — `12.345.678-5`, never
+`012.345.678-5`. Leading zeros only ever appear as a fixed-width storage
+artifact. Unlike the three accepted shapes (which differ only in *separators*
+over the same digits), padding forms an **unbounded** family of distinct strings
+for one RUT (`12345678` = `012345678` = `0012345678` = …). Accepting them let a
+zero-padded variant slip past a strict uniqueness/identity gate — the exact class
+of bug the strict acceptance path exists to prevent. `4.x` silently stripped the
+zeros and returned `true`; `5.0.0` refuses the input instead, and points you at
+`clean()` to normalize it explicitly.
+
+### Do I need to change anything?
+
+**For most projects, no.** If you validate normally-formatted RUTs — compact
+(`123456785`), compact + hyphen (`12345678-5`) or canonical dotted
+(`12.345.678-5`) — nothing changes. You only need to act if you feed
+**zero-padded** values (e.g. fixed-width exports from legacy/mainframe systems)
+directly into `validate()` / `isValidRut()` / `isRutLike()`.
+
+### Upgrade notes
+
+- **Normalize before validating.** Pipe padded input through `clean()` first —
+  `validate(clean(raw, { throwOnError: false }) ?? '')` — or strip the zeros
+  upstream. `clean()`, `format()` and `equals()` are **unchanged** and still
+  normalize leading zeros, so `equals('012345678-5', '12345678-5')` stays `true`
+  and `format('0012345674')` stays `'1.234.567-4'`.
+- **Size the impact on a real dataset** with the differential harness:
+  `npm run test:differential` writes `tests/differential-report.md`, which now
+  lists `leading-zeros` (and the zero-padded `len-64-padded-valid`) as expected
+  regression shapes.
+
+### Changed (Breaking)
+
+- **`validate()`, `isValidRut()` and `isRutLike()` reject leading-zero padding.**
+  Any input whose first (trimmed) character is `0` now returns `false`:
+  `validate('012.345.678-5')`, `validate('0012345678')` and
+  `isRutLike('00012345678')` are all `false` (were `true` in `4.x`). The guard
+  lives in the shared `parseRutLike` parser, so the three predicates move
+  together. It is a runtime check on the parsed input, **not** merely the removal
+  of the `0*` prefix from the shape patterns: a single zero on a 7-digit body
+  (`01234567-4`) is absorbed by `\d{7,8}` and would otherwise be stripped during
+  normalization, so the patterns alone could not close the gap.
+
+### Unchanged
+
+- **The lenient normalizers stay permissive.** `clean()`, `format()`,
+  `decompose()`, `getBody()`, `getVerifier()`, `mask()`, `calculateVerifier()`
+  and `equals()` continue to strip leading zeros — they are normalization /
+  recovery tools, not validation. The split is deliberate: `validate*` answers
+  "is this written as a canonical RUT?"; `clean` / `format` answer "recover a RUT
+  from messy input".
+- **Modulo 11, strict mode, the 64-char security cap, the generic
+  `Invalid RUT input` error, and bundle size are all untouched.**
+
+### Internal
+
+- `parseRutLike` gains the leading-zero guard; the now-redundant `0*` prefix was
+  dropped from the `compact` / `compactWithHyphen` / `dotted` shape patterns to
+  document the intent at the grammar level.
+- The differential harness now treats `leading-zeros` and `len-64-padded-valid`
+  as expected `v3.4.0 → current` regressions, and its `random-digits` stratum no
+  longer emits leading-zero strings (so that catch-all only ever reports a *real*
+  surprise). Regenerated `tests/differential-report.md` and relabeled the report
+  from "v4.0.0" to "current (5.0.0)".
+- Test suite updated accordingly (**496 tests**): the leading-zero *acceptance*
+  cases became *rejection* cases, and the 64-char boundary tests now use
+  whitespace padding — the only remaining way to reach the cap with otherwise
+  valid input now that zero-padding is rejected.
+
 ## [4.1.0] - 2026-06-13
 
 A **feature** release that broadens the API and hardens the build, packaging, CI

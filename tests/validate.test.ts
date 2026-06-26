@@ -44,15 +44,6 @@ describe('validate', () => {
       expect(validate(rut)).toBe(true)
     })
 
-    test.each([
-      ['009.068.826-K', '7-digit body + 2 leading zeros'],
-      ['0009068826K', 'compact + 3 leading zeros'],
-      ['018.972.631-7', '8-digit body + 1 leading zero'],
-      ['00012345674', 'compact + 3 leading zeros (7-digit body, DV 4)'],
-    ])('accepts leading zeros: %s', (rut) => {
-      expect(validate(rut)).toBe(true)
-    })
-
     test('accepts verifier digit 0 (covers the 11 - sum%11 === 11 branch of Modulo-11)', () => {
       expect(validate('18.264.950-3')).toBe(true)
       // A RUT whose verifier is literally '0' — i.e. checkDigit === 11.
@@ -61,7 +52,6 @@ describe('validate', () => {
 
     test('accepts the documented minimum and maximum body', () => {
       expect(validate('10.000.000-8')).toBe(true)
-      expect(validate('010.000.002-4')).toBe(true) // normalizes to 10000024
       expect(validate('99.999.999-9')).toBe(true)
     })
   })
@@ -98,9 +88,27 @@ describe('validate', () => {
 
     test.each([
       ['123', 'too short'],
-      ['1234567', 'just under min length after leading-zero strip'],
+      ['1234567', 'just under min length (7 chars)'],
       ['12345678901', 'too long but under 64-char cap'],
     ])('rejects out-of-range length: %p (%s)', (rut) => {
+      expect(validate(rut)).toBe(false)
+    })
+
+    // Leading-zero padding is non-canonical (v5 breaking change). A real RUT
+    // body never carries leading zeros, and padding forms an *unbounded* family
+    // of strings for the same RUT — so `validate`/`isValidRut`/`isRutLike`
+    // reject it. The lenient helpers (`clean`/`format`/`equals`) still strip and
+    // normalize these; see their test suites, which intentionally keep the
+    // leading-zero cases green.
+    test.each([
+      ['009.068.826-K', '2 leading zeros, dotted (accepted pre-v5)'],
+      ['0009068826K', '3 leading zeros, compact'],
+      ['018.972.631-7', '1 leading zero, dotted 8-digit body'],
+      ['00012345674', '3 leading zeros, compact 7-digit body'],
+      ['01234567-4', 'single zero on a 7-digit body — absorbed by \\d{7,8}, caught by the guard'],
+      ['0123456785', 'single leading zero, compact'],
+      ['010.000.002-4', 'leading zero on an otherwise-valid RUT'],
+    ])('rejects leading-zero padding (non-canonical): %p (%s)', (rut) => {
       expect(validate(rut)).toBe(false)
     })
 
@@ -123,14 +131,17 @@ describe('validate', () => {
     // The cap is a security bound (defense against ReDoS-style abuse), not a
     // format rule. These boundary tests anchor the exact 64/65 split so a
     // future refactor cannot widen the cap silently.
-    test('accepts a valid RUT padded with zeros to exactly 64 chars', () => {
-      const padded = '0'.repeat(55) + '123456785' // length 64, normalizes to 123456785
+    test('accepts an otherwise-valid RUT whitespace-padded to exactly 64 chars', () => {
+      // Zero-padding is now rejected as non-canonical, so the 64-char boundary is
+      // exercised with surrounding whitespace (the cap is measured on the raw
+      // input; `trim()` then removes the padding before parsing).
+      const padded = ' '.repeat(55) + '123456785' // raw length 64, trims to 123456785
       expect(padded.length).toBe(64)
       expect(validate(padded)).toBe(true)
     })
 
     test('rejects input at MAX_RUT_INPUT_LENGTH + 1 (65 chars)', () => {
-      const overCap = '0'.repeat(56) + '123456785' // length 65
+      const overCap = ' '.repeat(56) + '123456785' // raw length 65, over the cap
       expect(overCap.length).toBe(65)
       expect(validate(overCap)).toBe(false)
     })
@@ -221,8 +232,6 @@ describe('isRutLike', () => {
     ['12345678-9', 'compact with hyphen'],
     ['123456789', 'compact'],
     ['1.234.567-K', 'canonical dotted 7-digit body, K verifier'],
-    ['009.068.826-K', 'with leading zeros'],
-    ['00012345678', 'compact with leading zeros'],
     ['  12.345.678-5  ', 'with surrounding whitespace (v4 trim)'],
     ['12.345.678-k', 'lowercase k'],
   ])('returns true for shape-valid input: %p (%s)', (rut) => {
@@ -239,6 +248,9 @@ describe('isRutLike', () => {
     ['1'.repeat(128), 'over 64-char cap'],
     ['12 345 678 5', 'internal whitespace'],
     ['K2345678-5', 'K not at end'],
+    ['009.068.826-K', 'leading zeros, dotted (non-canonical, v5)'],
+    ['00012345678', 'leading zeros, compact (non-canonical, v5)'],
+    ['01234567-4', 'single leading zero on a 7-digit body (v5)'],
   ])('returns false for shape-invalid input: %p (%s)', (rut) => {
     expect(isRutLike(rut)).toBe(false)
   })
@@ -253,7 +265,8 @@ describe('isRutLike', () => {
   })
 
   test('respects the 64-char cap at the exact boundary', () => {
-    expect(isRutLike('0'.repeat(55) + '123456785')).toBe(true) // length 64
-    expect(isRutLike('0'.repeat(56) + '123456785')).toBe(false) // length 65
+    // Whitespace padding (trimmed before parsing); zero-padding is now rejected.
+    expect(isRutLike(' '.repeat(55) + '123456785')).toBe(true) // raw length 64
+    expect(isRutLike(' '.repeat(56) + '123456785')).toBe(false) // raw length 65, over cap
   })
 })
