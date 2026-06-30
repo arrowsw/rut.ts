@@ -513,11 +513,23 @@ function mask(rut: string, options?: SafeOptions): string | null {
 
 /**
  * Compares two RUTs for equality after normalization, so different shapes of the
- * same RUT match: `equals('12.345.678-5', '123456785')` → true. Returns false if
- * either argument is not a structurally valid RUT.
+ * same RUT match: `equals('12.345.678-5', '123456785')` → `true`.
+ *
+ * This is a **normalization comparison, not validation**. It strips dots,
+ * hyphens, leading zeros and case via `clean()` and compares the results — it
+ * does **not** check the Modulo 11 verifier. Two RUT-shaped strings with the
+ * same verifier therefore compare equal even when that verifier is wrong
+ * (`equals('12345678-9', '12345678-9')` → `true`, though neither is a valid
+ * RUT), and a zero-padded value still matches its canonical form
+ * (`equals('012345678-5', '12345678-5')` → `true`) even though `validate()`
+ * rejects the padded shape. Use `validate()` / `isValidRut()` when you need
+ * validity, not just sameness.
+ *
+ * Returns `false` if either argument is not a string or cannot be normalized to
+ * a RUT-shaped value (i.e. `clean()` returns `null`).
  * @param {unknown} a - First RUT.
  * @param {unknown} b - Second RUT.
- * @returns {boolean} True if both normalize to the same RUT, false otherwise.
+ * @returns {boolean} True if both normalize to the same value, false otherwise.
  */
 const equals = (a: unknown, b: unknown): boolean => {
   if (typeof a !== 'string' || typeof b !== 'string') return false

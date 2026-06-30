@@ -69,6 +69,15 @@ directly into `validate()` / `isValidRut()` / `isRutLike()`.
   recovery tools, not validation. The split is deliberate: `validate*` answers
   "is this written as a canonical RUT?"; `clean` / `format` answer "recover a RUT
   from messy input".
+- **`equals()` stays a normalization comparison (docs clarified).** It strips
+  leading zeros (and dots/hyphens/case) and compares, so a zero-padded value
+  still matches its canonical form — `equals('012345678-5', '12345678-5')` →
+  `true` — even though `validate()` now rejects the padded shape. The two answer
+  different questions ("same RUT?" vs "valid canonical input?"). Its JSDoc was
+  corrected: it previously implied it returned `false` for "structurally
+  invalid" input, but `equals` never checked the Modulo 11 verifier (and still
+  does not — `equals('12345678-9', '12345678-9')` is `true`). Use `validate()` /
+  `isValidRut()` for validity.
 - **Modulo 11, strict mode, the 64-char security cap, the generic
   `Invalid RUT input` error, and bundle size are all untouched.**
 
