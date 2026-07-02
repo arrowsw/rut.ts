@@ -22,6 +22,17 @@ type Rut = string & { readonly [RUT_BRAND]: true }
 type GenerateFormat = 'dotted' | 'compact' | 'hyphen'
 type GenerateOptions = { bodyLength?: 7 | 8; format?: GenerateFormat; count?: number }
 
+type ParseOptions = { strict?: boolean; canonicalOnly?: boolean }
+/**
+ * Discriminated union returned by {@link parse}. Narrow on `success`:
+ * the `true` branch carries the branded {@link Rut} plus its parts and the
+ * canonical dotted rendering; the `false` branch carries the constant-message
+ * {@link InvalidRutError} (never the offending input — anti-PII).
+ */
+type ParseResult =
+  | { success: true; rut: Rut; body: string; verifier: VerifierDigit; formatted: string }
+  | { success: false; error: InvalidRutError }
+
 const INVALID_RUT_MESSAGE = 'Invalid RUT input'
 
 /**
@@ -484,6 +495,54 @@ function generate(options?: GenerateOptions): string | string[] {
  */
 const isValidRut = (rut: unknown, options?: ValidateOptions): rut is Rut => validate(rut, options)
 
+// The one place a `Rut` is minted outside the `isValidRut` narrowing. Only
+// `parse()` may call this, and only after the compact string has survived the
+// same shape split and Modulo 11 check that `validate()` runs — so the brand
+// stays truthful by construction.
+const mintRut = (compact: string): Rut => compact as Rut
+
+/**
+ * Parses arbitrary input into a validated RUT. This is the recommended entry
+ * point for data ingestion: it **never throws** and returns a discriminated
+ * union ({@link ParseResult}) instead.
+ *
+ * The default mode is **lenient + validating**: input is normalized like
+ * `clean()` (zero-padded fixed-width exports, odd grouping, embedded garbage
+ * and lowercase `k` are all recovered) and the Modulo 11 verifier is then
+ * required to match. `parse('0012345674')` therefore succeeds with
+ * `formatted: '1.234.567-4'` — the blessed path for dirty/legacy data that
+ * `validate()` deliberately rejects.
+ *
+ * On success the result carries the branded {@link Rut} (compact form), the
+ * `body` / `verifier` parts, and `formatted` — the canonical dotted rendering
+ * (`12.345.678-5`), which always passes `validate()`.
+ *
+ * @param {unknown} input - The value to parse.
+ * @param {ParseOptions} [options] - Parsing options.
+ * @param {boolean} [options.canonicalOnly=false] - Apply `validate()`'s shape
+ *   contract before the verifier check: only the three canonical shapes are
+ *   accepted and leading-zero padding is rejected.
+ * @param {boolean} [options.strict=false] - Additionally reject suspicious
+ *   repeated-digit placeholders (e.g. `11.111.111-1`), like `validate()`'s
+ *   strict mode.
+ * @returns {ParseResult} `{ success: true, rut, body, verifier, formatted }`
+ *   or `{ success: false, error }`.
+ */
+const parse = (input: unknown, options?: ParseOptions): ParseResult => {
+  const parsed = options?.canonicalOnly ? parseRutLike(input) : parseLenient(input)
+  if (parsed === null) return { success: false, error: new InvalidRutError() }
+  if (options?.strict && isSuspicious(parsed.body)) return { success: false, error: new InvalidRutError() }
+  if (calculateVerifierForBody(parsed.body) !== parsed.verifier) return { success: false, error: new InvalidRutError() }
+
+  return {
+    success: true,
+    rut: mintRut(parsed.body + parsed.verifier),
+    body: parsed.body,
+    verifier: parsed.verifier,
+    formatted: formatDecomposed(parsed, true),
+  }
+}
+
 /**
  * Masks a RUT for safe logging/display, keeping only the leading group and the
  * verifier: `12.345.678-5` → `12.***.***-5`. Useful alongside the library's
@@ -534,6 +593,7 @@ const equals = (a: unknown, b: unknown): boolean => {
 
 export {
   validate,
+  parse,
   clean,
   format,
   calculateVerifier,
@@ -551,6 +611,8 @@ export type {
   FormatOptions,
   SafeOptions,
   ValidateOptions,
+  ParseOptions,
+  ParseResult,
   VerifierDigit,
   Rut,
   GenerateOptions,
