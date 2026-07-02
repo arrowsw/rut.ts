@@ -478,8 +478,9 @@ ${fmt(newAccepts)}
 ${fmt(regressions41)}
 
 Both shapes are the same documented 5.0.0 change: leading-zero padding is no
-longer accepted by the predicates. Normalize with \`clean()\` or ingest through
-\`parse()\` (lenient by default) before validating.
+longer accepted by the predicates. Ingest legacy data through the documented
+recipe — \`const rut = clean(raw, { throwOnError: false })\` and then
+\`validate(rut)\` — which normalizes first and never accepts a wrong verifier.
 
 ## v4.1.0 → current — \`equals()\` default mode
 

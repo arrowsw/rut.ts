@@ -1,18 +1,6 @@
 import fc from 'fast-check'
 
-import {
-  calculateVerifier,
-  clean,
-  decompose,
-  equals,
-  format,
-  generate,
-  isRutLike,
-  isValidRut,
-  mask,
-  parse,
-  validate,
-} from '../src'
+import { calculateVerifier, clean, decompose, equals, format, isRutLike, isValidRut, mask, validate } from '../src'
 
 /**
  * Property-based tests (fast-check). These complement the hand-written
@@ -142,9 +130,10 @@ describe('property: equals / mask', () => {
   })
 })
 
-// Mixed-input arbitrary for the 5.0.0 laws: plain fuzz strings would make the
-// implications vacuously true almost always, so valid RUTs, zero-padded
-// variants and wrong-DV strings are folded in to actually exercise both sides.
+// Mixed-input arbitrary for the 5.0.0 equals laws: plain fuzz strings would
+// make the implications vacuously true almost always, so valid RUTs,
+// zero-padded variants and wrong-DV strings are folded in to actually exercise
+// both sides.
 const zeroPadded = validRut.map((rut) => `00${clean(rut)}`)
 const wrongDv = validBody.map((body) => {
   const good = calculateVerifier(body)
@@ -152,41 +141,35 @@ const wrongDv = validBody.map((body) => {
 })
 const anyInput = fc.oneof(fc.string(), validRut, zeroPadded, wrongDv)
 
-describe('property: parse laws (5.0.0 API coherence)', () => {
-  test('parse(generate()) succeeds for every format and body length', () => {
-    fc.assert(
-      fc.property(
-        fc.constantFrom<'dotted' | 'compact' | 'hyphen'>('dotted', 'compact', 'hyphen'),
-        fc.constantFrom<7 | 8>(7, 8),
-        (fmt, bodyLength) => parse(generate({ format: fmt, bodyLength })).success,
-      ),
-      RUNS,
-    )
-  })
+describe('property: the lenient-ingestion recipe (clean → validate)', () => {
+  // The documented blessed path for dirty/legacy input:
+  //   const rut = clean(raw, { throwOnError: false })
+  //   if (rut !== null && validate(rut)) accept(rut)
+  const recipe = (raw: string): string | null => {
+    const rut = clean(raw, { throwOnError: false })
+    return rut !== null && validate(rut) ? rut : null
+  }
 
-  test('parse success ⟹ formatted is canonical-valid: validate(parse(x).formatted)', () => {
+  test('the recipe accepts every zero-padded rendering of a valid RUT and returns the canonical compact', () => {
     fc.assert(
-      fc.property(anyInput, (x) => {
-        const result = parse(x)
-        return !result.success || validate(result.formatted)
+      fc.property(validRut, (rut) => {
+        const accepted = recipe(`00${clean(rut)}`)
+        return accepted !== null && accepted === clean(rut) && validate(accepted)
       }),
       RUNS,
     )
   })
 
-  test('parse success ⟹ equals(x, parse(x).formatted)', () => {
+  test('the recipe never accepts a wrong-verifier value, however padded', () => {
     fc.assert(
-      fc.property(anyInput, (x) => {
-        const result = parse(x)
-        return !result.success || equals(x, result.formatted)
-      }),
+      fc.property(wrongDv, (raw) => recipe(raw) === null && recipe(`000${raw}`) === null),
       RUNS,
     )
   })
 
-  test('canonicalOnly is monotone: parse(x, {canonicalOnly}) success ⟹ parse(x) success', () => {
+  test('recipe acceptance coincides with default equals reflexivity', () => {
     fc.assert(
-      fc.property(anyInput, (x) => !parse(x, { canonicalOnly: true }).success || parse(x).success),
+      fc.property(anyInput, (raw) => (recipe(raw) !== null) === equals(raw, raw)),
       RUNS,
     )
   })

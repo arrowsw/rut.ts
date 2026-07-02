@@ -31,20 +31,7 @@ npm install rut.ts
 ## Quick start
 
 ```typescript
-import { parse, validate, format, clean, decompose, isRutLike } from 'rut.ts'
-
-// Parse — the recommended entry point. Never throws; normalizes dirty/legacy
-// input (zero padding, odd grouping, embedded garbage) and requires a valid
-// Modulo 11 verifier.
-const result = parse('0012345674') // e.g. a zero-padded fixed-width export
-if (result.success) {
-  result.rut //       '12345674'    — branded `Rut`, safe to persist
-  result.formatted // '1.234.567-4' — canonical dotted rendering
-  result.body //      '1234567'
-  result.verifier //  '4'
-}
-parse('12345678-9').success // false (wrong verifier)
-parse('0012345674', { canonicalOnly: true }).success // false (padding rejected)
+import { validate, format, clean, decompose, isRutLike } from 'rut.ts'
 
 // Validate — the strict canonical gate; strict mode also rejects placeholders
 validate('12.345.678-5') // true
@@ -67,8 +54,7 @@ decompose('12.345.678-5') // { body: '12345678', verifier: '5' }
 // Cheap shape check, no full validation
 isRutLike('12.345.678-5') // true
 
-// The lower-level helpers throw InvalidRutError by default; pass
-// { throwOnError: false } to get null instead — or just use parse().
+// Safe mode everywhere — return null instead of throwing
 format('abc', { throwOnError: false }) // null
 ```
 
@@ -78,8 +64,7 @@ format('abc', { throwOnError: false }) // null
 import { isValidRut, InvalidRutError, mask, equals, generate } from 'rut.ts'
 import type { Rut } from 'rut.ts'
 
-// Type guard — narrows `unknown`/`string` to the branded `Rut`.
-// (`parse()` is the other way to mint a `Rut`: its success branch carries one.)
+// Type guard — narrows `unknown`/`string` to the branded `Rut`
 function persist(value: string) {
   if (isValidRut(value)) {
     const rut: Rut = value // ✅ the type system knows it was validated
@@ -110,9 +95,8 @@ generate({ count: 3 }) // ['…', '…', '…']
 
 ## Features
 
-- **Parsing** — `parse()` never throws: normalizes dirty/legacy input, requires a valid verifier, and returns a discriminated union carrying the branded `Rut` plus its canonical rendering.
 - **Validation** — verifier check with bounded input parsing and an optional `strict` mode that rejects placeholder/repeated-digit RUTs.
-- **Branded types** — `isValidRut()` (type guard) and `parse()` both mint the branded `Rut`, so "this string was validated" flows through the type system.
+- **Branded types** — `isValidRut()` (type guard) narrows input to a branded `Rut`, so "this string was validated" flows through the type system.
 - **Typed errors** — `InvalidRutError` (with a stable `code`) instead of message-matching.
 - **Formatting** — standardized output, with or without dots.
 - **Incremental formatting** — progressive formatting as the user types, ideal for form inputs.
@@ -123,7 +107,7 @@ generate({ count: 3 }) // ['…', '…', '…']
 - **Generation** — cryptographically-backed random valid RUTs, with `bodyLength`, `format` and `count` options.
 - **Calculate verifier** — compute the verifier digit for a given body.
 - **Format detection** — cheap `isRutLike` check without full validation.
-- **Safe mode** — the lower-level helpers support `throwOnError: false` to return `null` instead of throwing (`parse()` makes this largely unnecessary).
+- **Safe mode** — every safe function supports `throwOnError: false` to return `null` instead of throwing.
 
 <details>
 <summary><strong>New to RUTs? What the format means</strong></summary>
@@ -176,47 +160,43 @@ any input longer than 64 chars.
 > **Zero-padded data?** Leading zeros are rejected by `validate()` /
 > `isValidRut()` / `isRutLike()`, but `clean()`, `format()` and `equals()` stay
 > permissive and still strip them. If you ingest fixed-width/zero-padded values,
-> use **`parse()`** — it normalizes and validates in one step (see below).
+> use the two-line recipe below — normalize first, then validate.
 
 > The 64-char limit is a **security bound, not a format rule**. A real RUT is
 > ~9 significant characters, so the cap never rejects a realistic RUT — it just
 > refuses to _process_ implausibly long strings, neutralizing CPU/ReDoS-style
 > abuse before any parsing runs.
 
-> 💡 **Migrating a dataset?** Ingest through `parse()` (lenient by default), or
-> sanity-check a representative sample with `npm run test:differential` (writes
+> 💡 **Migrating a dataset?** Use the recipe below, or sanity-check a
+> representative sample with `npm run test:differential` (writes
 > `tests/differential-report.md`, including a dedicated 4.1.0 → 5.0.0 section).
 > `clean()` / `decompose()` stay permissive — never treat their output as
 > "validated".
 
-## Parsing dirty input
+## Ingesting dirty or legacy input
 
 Legacy exports, mainframe fixed-width files, and copy-pasted values rarely
-arrive canonical. `parse()` is the one blessed path for that data: it
-normalizes like `clean()` — zero padding, odd grouping, embedded garbage,
-lowercase `k` — and then **requires the Modulo 11 verifier to match**. It never
-throws.
+arrive canonical. The blessed path is two lines — **normalize first, then
+validate the normalized value**:
 
 ```typescript
-import { parse } from 'rut.ts'
+import { clean, validate } from 'rut.ts'
 
-// A zero-padded value from a fixed-width export:
-const result = parse('0012345674')
-if (result.success) {
-  result.rut //       '12345674'    — branded `Rut`
-  result.formatted // '1.234.567-4' — always passes validate()
-} else {
-  result.error // InvalidRutError — constant message, the input never leaks into it
+const rut = clean(raw, { throwOnError: false }) // strips zeros, dots, garbage → '12345674' | null
+if (rut !== null && validate(rut)) {
+  store(rut) // canonical compact form, Modulo 11 verified — safe for UNIQUE keys
 }
-
-// Tighten as needed:
-parse('0012345674', { canonicalOnly: true }) // failure — validate()'s shape contract
-parse('11.111.111-1', { strict: true }) // failure — placeholder rejection
 ```
 
+Two things make this recipe safe: `clean()` collapses the unbounded zero-padded
+family into one canonical string (so a `UNIQUE` constraint can't be bypassed by
+padding), and `validate()` then proves the verifier. Never store `clean()`'s
+output *without* the `validate()` step — `clean` does not check the Modulo 11
+digit.
+
 `validate()` deliberately has **no** relaxation flags: it stays a binary
-canonical gate. When input might be messy, reach for `parse()` — not for a
-looser validator.
+canonical gate. When input might be messy, normalize it first — don't reach for
+a looser validator.
 
 ## `equals()` vs `validate()` — which one?
 
@@ -261,8 +241,6 @@ import type {
   EqualsOptions,
   FormatOptions,
   GenerateOptions,
-  ParseOptions,
-  ParseResult,
   Rut,
   SafeOptions,
   ValidateOptions,
@@ -273,13 +251,10 @@ import type {
 // DecomposedRut:  { body: string; verifier: VerifierDigit }
 // FormatOptions:  { incremental?: boolean; dots?: boolean; throwOnError?: boolean }
 // ValidateOptions:{ strict?: boolean }
-// ParseOptions:   { strict?: boolean; canonicalOnly?: boolean }
-// ParseResult:    { success: true; rut: Rut; body; verifier; formatted }
-//               | { success: false; error: InvalidRutError }
 // EqualsOptions:  { requireValid?: boolean }
 // SafeOptions:    { throwOnError?: boolean }
 // GenerateOptions:{ bodyLength?: 7 | 8; format?: 'dotted' | 'compact' | 'hyphen'; count?: number }
-// Rut:            string & { /* brand */ }  — a validated RUT (from isValidRut or parse)
+// Rut:            string & { /* brand */ }  — a validated RUT (from isValidRut)
 ```
 
 ## Upgrading
@@ -288,8 +263,9 @@ import type {
 no further breaking changes are planned. Coming from `4.x`, the two behavior
 changes are leading-zero rejection in the predicates and the validity-checking
 `equals` default — the [**CHANGELOG**](./CHANGELOG.md) has a before/after table
-and migration notes for both (in short: ingest dirty data with `parse()`, and
-pass `{ requireValid: false }` to `equals` for the old comparison).
+and migration notes for both (in short: ingest dirty data with the
+`clean()`-then-`validate()` recipe above, and pass `{ requireValid: false }` to
+`equals` for the old comparison).
 
 ## Contributing
 

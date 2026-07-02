@@ -15,18 +15,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 The **final-shape** major. `5.0.0` closes the validation contract
 (leading-zero padding is rejected by the acceptance predicates), makes
 `equals()` answer the question its name asks (validity is now checked by
-default), adds **`parse()`** — the one blessed, never-throwing entry point for
-dirty/legacy input — and drops the v3-era dead weight. The Modulo 11 algorithm
-is **unchanged** throughout.
+default), and drops the v3-era dead weight. The Modulo 11 algorithm is
+**unchanged** throughout.
 
 ### API stability commitment
 
 **This is the release after which the contract freezes.** After three majors in
 about a year, no further breaking changes are planned: the `validate()`
 acceptance contract (three canonical shapes, no leading zeros, 64-char cap) is
-final, and the `throwOnError: true` defaults of the lower-level helpers **will
-not change until a hypothetical v6** — which is not planned. New capabilities
-will arrive as additions (like `parse()`), not mutations.
+final, and the `throwOnError: true` defaults of the safe helpers **will not
+change until a hypothetical v6** — which is not planned. Any new capability
+will arrive as an addition in a minor release, never as a mutation of existing
+behavior.
 
 ### Why
 
@@ -55,17 +55,25 @@ need to act only if:
 
 ### Upgrade notes
 
-- **Ingest dirty/legacy input through `parse()`.** It normalizes like `clean()`
-  (zero padding, odd grouping, embedded garbage) and then requires a valid
-  Modulo 11 verifier — no exceptions, no `?? ''` plumbing:
+- **Ingest dirty/legacy input with the two-line recipe — normalize first, then
+  validate the normalized value:**
 
   ```ts
-  const result = parse(raw) // e.g. raw = '0012345674' from a fixed-width export
-  if (result.success) db.save(result.rut) // '12345674' — canonical, branded, validated
+  const rut = clean(raw, { throwOnError: false }) // '0012345674' → '12345674' | null
+  if (rut !== null && validate(rut)) db.save(rut) // canonical, Modulo 11 verified
   ```
 
-  The `validate(clean(raw, { throwOnError: false }) ?? '')` pipeline previously
-  recommended here still works but is superseded by `parse()`.
+  This is the blessed path for zero-padded fixed-width exports and other messy
+  sources: `clean()` collapses the unbounded zero-padded family into one
+  canonical string, and `validate()` then proves the verifier. Never store
+  `clean()`'s output without the `validate()` step — `clean` does not check the
+  Modulo 11 digit.
+
+  Deliberate **non-goal**: no `allowLeadingZeros`-style relaxation flag was (or
+  will be) added to `validate()` — every flag that relaxes the canonical
+  contract erodes exactly the guarantee it exists to give. `validate` stays a
+  binary, flag-free (except `strict`) identity gate; messy input gets
+  normalized *before* the gate, never waved through it.
 - **Dedup of dirty datasets:** pass `{ requireValid: false }` to `equals` to
   keep the 4.x behavior (same typo in two rows → still the same entity).
 - **`getInvalidRutError()` callers:** catch `InvalidRutError` or check
@@ -78,36 +86,8 @@ need to act only if:
 
 ### Added
 
-- **`parse(input, options?)` — the recommended entry point for data ingestion.**
-  Never throws; returns a Zod-style discriminated union:
-
-  ```ts
-  type ParseResult =
-    | { success: true; rut: Rut; body: string; verifier: VerifierDigit; formatted: string }
-    | { success: false; error: InvalidRutError }
-  ```
-
-  - **Default mode is lenient + validating**: input is normalized like `clean()`
-    (zero-padded fixed-width exports, non-canonical grouping, embedded garbage,
-    lowercase `k`) and the Modulo 11 verifier must then match. This is the
-    definitive answer to "how do I handle zero-padded data": `validate` stays
-    strict; `parse` is the escape hatch.
-  - **`{ canonicalOnly: true }`** applies `validate()`'s shape contract first
-    (rejects leading-zero padding and non-canonical grouping);
-    **`{ strict: true }`** additionally rejects repeated-digit placeholders.
-  - On success, `rut` is the **branded `Rut`** — `parse` is the second
-    legitimate way to mint one, alongside the `isValidRut()` type guard — and
-    `formatted` is the canonical dotted rendering (`12.345.678-5`), which always
-    passes `validate()`.
-  - On failure, `error` is the constant-message `InvalidRutError`: the offending
-    input never appears in it (anti-PII, same as the throwing helpers).
-  - New exported types: `ParseOptions`, `ParseResult`, `EqualsOptions`.
-
-  Deliberate **non-goal**: no `allowLeadingZeros`-style relaxation flag was (or
-  will be) added to `validate()` — every flag that relaxes the canonical
-  contract erodes exactly the guarantee it exists to give. `validate` stays a
-  binary, flag-free (except `strict`) identity gate; `parse` is the one blessed
-  path for non-canonical input.
+- **`EqualsOptions`** exported type (`{ requireValid?: boolean }`) for the new
+  `equals` option described below.
 
 ### Changed (Breaking)
 
@@ -167,31 +147,30 @@ need to act only if:
   continue to strip leading zeros — they are normalization / recovery tools, not
   validation. The split is deliberate: `validate*` answers "is this written as a
   canonical RUT?"; `clean` / `format` answer "recover a RUT from messy input";
-  `parse` bridges the two. `clean()`'s docs now spell out that it strips *every*
-  non-`[0-9kK]` character wherever it sits — `clean('RUT: 12.345.678-5')` →
-  `'123456785'` — by design, for its paste-normalizer role.
-- **`throwOnError` defaults are untouched.** The seven lower-level helpers
+  the two compose into the ingestion recipe above. `clean()`'s docs now spell
+  out that it strips *every* non-`[0-9kK]` character wherever it sits —
+  `clean('RUT: 12.345.678-5')` → `'123456785'` — by design, for its
+  paste-normalizer role.
+- **`throwOnError` defaults are untouched.** The seven safe helpers
   (`clean`, `format`, `decompose`, `getBody`, `getVerifier`, `calculateVerifier`,
   `mask`) still throw `InvalidRutError` by default and still accept
   `{ throwOnError: false }`. Flipping that default was evaluated and rejected:
   TypeScript consumers would get self-discovering compile errors, but plain
   JavaScript consumers would get a **silent** behavior change (`throw` → `null`)
   that propagates noiselessly downstream — the worst class of breaking change.
-  The ergonomics problem is solved by *addition* instead: `parse()` never throws
-  and is the recommended entry point. These defaults will not change until a
-  hypothetical v6.
+  These defaults will not change until a hypothetical v6.
 - **Modulo 11, strict mode, the 64-char security cap, and the generic
   `Invalid RUT input` error are all untouched.**
 
 ### Internal
 
-- **`parse` is now the conceptual core of the library.** The internal parser was
-  restructured into a single typed splitter shared by a lenient core (used by
-  `clean` / `decompose` / `getBody` / `getVerifier` / `mask` / `format`) and a
-  canonical core (used by `validate` / `isValidRut` / `isRutLike` / `parse`).
-  `decompose`'s unreachable defensive re-narrowing branch — a long-standing
-  surviving Stryker mutant — is gone *structurally*, not via ignore-comment.
-  Same regex budget on the `validate` hot path; no perf regression.
+- **The internal parser was restructured into a single typed core.** One typed
+  splitter is now shared by a lenient core (used by `clean` / `decompose` /
+  `getBody` / `getVerifier` / `mask` / `format`) and a canonical core (used by
+  `validate` / `isValidRut` / `isRutLike`). `decompose`'s unreachable defensive
+  re-narrowing branch — a long-standing surviving Stryker mutant — is gone
+  *structurally*, not via ignore-comment. Same regex budget on the `validate`
+  hot path; no perf regression.
 - `parseRutLike` gains the leading-zero guard; the now-redundant `0*` prefix was
   dropped from the `compact` / `compactWithHyphen` / `dotted` shape patterns to
   document the intent at the grammar level.
@@ -205,13 +184,12 @@ need to act only if:
   50 004 comparison pairs. Same reproducible seed; the `random-digits` stratum
   still never emits leading-zero strings, so the catch-all only ever reports a
   *real* surprise.
-- **New property-based laws** (fast-check) pin the 5.0.0 API coherence:
-  `parse(generate())` always succeeds; `parse` success implies
-  `validate(formatted)` and `equals(x, formatted)`; `canonicalOnly` is monotone;
-  default-`equals` reflexivity coincides with normalized validity;
-  `equals(clean(a), a)` for every valid `a`; symmetry in both modes.
-- Test suite updated accordingly (**565 tests** across 17 suites, including the
-  new `parse` suite and type-level narrowing tests for the discriminated union).
+- **New property-based laws** (fast-check) pin the 5.0.0 API coherence: the
+  ingestion recipe accepts every zero-padded rendering of a valid RUT (and
+  never a wrong verifier, however padded); recipe acceptance coincides with
+  default-`equals` reflexivity; `equals(clean(a), a)` for every valid `a`;
+  `equals` symmetry in both modes.
+- Test suite updated accordingly (**523 tests** across 16 suites).
 
 ## [4.1.0] - 2026-06-13
 

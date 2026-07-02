@@ -41,8 +41,9 @@
 | `len-64-padded-valid` | 1 | `0000000000000000000000000000000000000…` |
 
 Both shapes are the same documented 5.0.0 change: leading-zero padding is no
-longer accepted by the predicates. Normalize with `clean()` or ingest through
-`parse()` (lenient by default) before validating.
+longer accepted by the predicates. Ingest legacy data through the documented
+recipe — `const rut = clean(raw, { throwOnError: false })` and then
+`validate(rut)` — which normalizes first and never accepts a wrong verifier.
 
 ## v4.1.0 → current — `equals()` default mode
 
@@ -63,7 +64,7 @@ Legacy parity: `equals(a, b, { requireValid: false })` matched v4.1.0 on
 
 - `validate('8.888.888-K', { strict: true })` — v3.4.0: **true** (bug: should be false), current: **false**
 - Non-string inputs with diverging result: **0** (none — both reject)
-- ReDoS: `validate('0'.repeat(100000) + 'x')` on current → **false** in **0.07 ms** (the frozen 3.4.0 regex exhibits catastrophic backtracking on this input and is deliberately not run here)
+- ReDoS: `validate('0'.repeat(100000) + 'x')` on current → **false** in **0.08 ms** (the frozen 3.4.0 regex exhibits catastrophic backtracking on this input and is deliberately not run here)
 
 ## How to read this
 

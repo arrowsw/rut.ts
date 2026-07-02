@@ -13,15 +13,12 @@ import {
   isRutLike,
   isValidRut,
   mask,
-  parse,
   validate,
 } from '../src'
 import type {
   DecomposedRut,
   EqualsOptions,
   FormatOptions,
-  ParseOptions,
-  ParseResult,
   Rut,
   SafeOptions,
   ValidateOptions,
@@ -107,25 +104,6 @@ const _typecheck = () => {
   }
   // A branded Rut is still a string.
   expectTypeOf<Rut>().toExtend<string>()
-
-  // ── parse (discriminated union narrows on `success`) ──────────────────
-  expectTypeOf(parse('x')).toEqualTypeOf<ParseResult>()
-  expectTypeOf(parse(123 as unknown, { strict: true, canonicalOnly: true })).toEqualTypeOf<ParseResult>()
-  const parseResult = parse('12.345.678-5')
-  if (parseResult.success) {
-    // Success branch: the second legitimate way to mint a branded Rut.
-    expectTypeOf(parseResult.rut).toEqualTypeOf<Rut>()
-    expectTypeOf(parseResult.body).toEqualTypeOf<string>()
-    expectTypeOf(parseResult.verifier).toEqualTypeOf<VerifierDigit>()
-    expectTypeOf(parseResult.formatted).toEqualTypeOf<string>()
-    // @ts-expect-error — the success branch carries no `error` field
-    void parseResult.error
-  } else {
-    expectTypeOf(parseResult.error).toEqualTypeOf<InvalidRutError>()
-    // @ts-expect-error — the failure branch carries no `rut` field
-    void parseResult.rut
-  }
-  expectTypeOf<ParseOptions>().toMatchObjectType<{ strict?: boolean; canonicalOnly?: boolean }>()
 
   // ── mask (same throwOnError overloads as clean) ────────────────────────
   expectTypeOf(mask('x')).toEqualTypeOf<string>()
