@@ -26,7 +26,7 @@ export default tseslint.config(
       '@typescript-eslint/ban-ts-comment': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
       // Underscore-prefixed args/vars are an intentional "unused on purpose"
-      // marker in this codebase (e.g. getInvalidRutError(_rut)).
+      // marker in this codebase (e.g. the `_input` that `fail()` refuses to echo).
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     },
   },

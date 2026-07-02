@@ -21,7 +21,7 @@ describe('equals', () => {
       test.each([
         ['12345678-9', '12345678-9', 'identical strings with a wrong verifier'],
         ['12.345.678-9', '123456789', 'same wrong-verifier value across shapes'],
-        ['00012345679', '12345678-9', 'zero-padded wrong verifier'],
+        ['0012345678-9', '12345678-9', 'zero-padded wrong verifier'],
       ])('equals(%p, %p) === false (%s)', (a, b) => {
         expect(equals(a, b)).toBe(false)
       })

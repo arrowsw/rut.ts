@@ -243,23 +243,24 @@ function randomValidBody(): string {
 
 type Row = { input: string; shape: string }
 
+/** Group a valid 7/8-digit body from the right in 3s: '12345678' → '12.345.678'. */
+const dottedBody = (b: string): string => {
+  const head = b.length === 8 ? b.slice(0, 2) : b.slice(0, 1)
+  const rest = b.length === 8 ? b.slice(2) : b.slice(1)
+  return `${head}.${rest.slice(0, 3)}.${rest.slice(3)}`
+}
+
 /** Render a known-valid (body+dv) into one of many real-world shapes. */
 function renderShapes(body: string, dv: string): Row[] {
   const compact = `${body}${dv}`
-  const dotted = (b: string) => {
-    // group from the right in 3s
-    const head = b.length === 8 ? b.slice(0, 2) : b.slice(0, 1)
-    const rest = b.length === 8 ? b.slice(2) : b.slice(1)
-    return `${head}.${rest.slice(0, 3)}.${rest.slice(3)}`
-  }
   return [
     { input: compact, shape: 'compact' },
     { input: `${body}-${dv}`, shape: 'compact+hyphen' },
-    { input: `${dotted(body)}-${dv}`, shape: 'canonical-dotted' },
-    { input: `${dotted(body)}${dv}`, shape: 'dotted-no-hyphen' },
+    { input: `${dottedBody(body)}-${dv}`, shape: 'canonical-dotted' },
+    { input: `${dottedBody(body)}${dv}`, shape: 'dotted-no-hyphen' },
     { input: `${compact.slice(0, -1)}${dv.toLowerCase()}`, shape: 'lowercase-k' },
     { input: `00${compact}`, shape: 'leading-zeros' },
-    { input: `  ${dotted(body)}-${dv}  `, shape: 'surrounding-space' },
+    { input: `  ${dottedBody(body)}-${dv}  `, shape: 'surrounding-space' },
     // ----- non-canonical: this is the regression surface -----
     { input: `${body.slice(0, 2)}.${body.slice(2)}-${dv}`, shape: 'noncanonical-grouping' },
     { input: `${body.split('').join('.')}-${dv}`, shape: 'every-digit-dotted' },
@@ -355,15 +356,13 @@ function runDifferential(targetSize: number) {
     const body = randomValidBody()
     const dv = dvOf(body)
     const compact = `${body}${dv}`
-    const head = body.length === 8 ? body.slice(0, 2) : body.slice(0, 1)
-    const rest = body.length === 8 ? body.slice(2) : body.slice(1)
-    const dotted = `${head}.${rest.slice(0, 3)}.${rest.slice(3)}-${dv}`
+    const canonical = `${dottedBody(body)}-${dv}`
     let bad = String(randInt(0, 9))
     while (bad === dv) bad = randInt(0, 9) < 1 ? 'K' : String(randInt(0, 9))
     const otherBody = randomValidBody()
     pairs.push(
-      { a: dotted, b: compact, shape: 'pair-same-valid-cross-shape' },
-      { a: `00${compact}`, b: dotted, shape: 'pair-zero-padded-vs-canonical' },
+      { a: canonical, b: compact, shape: 'pair-same-valid-cross-shape' },
+      { a: `00${compact}`, b: canonical, shape: 'pair-zero-padded-vs-canonical' },
       { a: `${body}-${bad}`, b: `${body}-${bad}`, shape: 'pair-wrong-dv-identical' },
       { a: `${body}${bad}`, b: `${body}-${bad}`, shape: 'pair-wrong-dv-cross-shape' },
       { a: compact, b: `${otherBody}${dvOf(otherBody)}`, shape: 'pair-different-ruts' },
@@ -671,9 +670,7 @@ const CORPUS = Number(process.env.DIFF_CORPUS ?? 1_000_000)
       } while (/^(.)\1*$/.test(body))
       const dv = dvOf(body)
 
-      const head = body.length === 8 ? body.slice(0, 2) : body.slice(0, 1)
-      const rest = body.length === 8 ? body.slice(2) : body.slice(1)
-      const dotted = `${head}.${rest.slice(0, 3)}.${rest.slice(3)}`
+      const dotted = dottedBody(body)
 
       const rows: Array<{ input: string; shape: string }> = [
         { input: `${body}${dv}`, shape: 'compact' },

@@ -18,7 +18,7 @@ correctness contract you can rely on in production.
 - 🪶 **Tiny & zero-dependency** — tree-shakeable ESM, ships only what you import.
 - 🔒 **Hardened by default** — bounded parsing, strict mode, generic errors. No ID values leak into logs or traces.
 - 🧠 **Fully typed** — first-class TypeScript types, no `@types` package needed.
-- 🌐 **Universal** — runs in Node (>= 18), the browser, Deno and Bun.
+- 🌐 **Universal** — runs in Node (>= 20), the browser, Deno and Bun.
 - ✅ **Battle-tested** — a differential harness guards every release against regressions.
 
 ## Installation

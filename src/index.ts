@@ -40,28 +40,14 @@ export class InvalidRutError extends Error {
   }
 }
 
-/** Helper to create SafeOptions with explicit throwOnError boolean */
-const withThrowOption = (throwOnError?: boolean): { throwOnError: boolean } => ({
-  throwOnError: throwOnError ?? true,
-})
-
 const MIN_RUT_LENGTH = 8
 const MAX_RUT_LENGTH = 9
 const MIN_BODY_LENGTH = 7
 const MAX_BODY_LENGTH = 8
 /**
- * Hard upper bound on accepted input length. This is a SECURITY bound, not a
- * RUT format rule: a real RUT is ~9 significant chars (and ~12 with dots and a
- * hyphen, a bit more with leading zeros or surrounding whitespace). The cap
- * exists so an attacker cannot feed an arbitrarily long string into the
- * validator and burn CPU — oversized input is rejected *before* any regex
- * runs (defense in depth alongside the non-backtracking patterns). 64 is an
- * arbitrary round number, generously above any legitimately-formatted RUT yet
- * small enough that the bounded patterns can never see an attack string.
- * Note: `validate`/`isValidRut`/`isRutLike` reject leading-zero padding outright
- * (a canonical RUT has none — see `parseRutLike`); this cap still bounds the
- * lenient helpers (`clean`/`format`), which normalize zero-padded input up to
- * 64 chars. See CHANGELOG "Changed (Breaking)".
+ * SECURITY bound, not a format rule: oversized input is rejected before any
+ * regex runs (CPU/ReDoS defense in depth alongside the non-backtracking
+ * patterns). 64 is arbitrary but generously above any real formatted RUT.
  */
 const MAX_RUT_INPUT_LENGTH = 64
 const MIN_GENERATED_BODY = 10000000
@@ -99,12 +85,9 @@ const normalizeRutValue = (rut: string): string =>
 
 const isVerifierDigit = (value: string): value is VerifierDigit => /^[\dK]$/.test(value)
 
-// Validates a normalized compact string and splits it into the shared internal
-// shape. This is the single point where the verifier is narrowed to
-// `VerifierDigit`, so every caller receives a typed `DecomposedRut` and never
-// needs a defensive re-narrowing branch of its own. The overall length bound
-// (8–9 chars) already implies the body bound (7–8 digits), so only the total
-// length, the body digits and the verifier character are checked.
+// Validates a normalized compact string and splits it into the shared typed
+// shape — the single point where the verifier narrows to `VerifierDigit`.
+// The total length bound (8–9) already implies the body bound (7–8 digits).
 const splitCleanRut = (cleaned: string): DecomposedRut | null => {
   if (cleaned.length < MIN_RUT_LENGTH || cleaned.length > MAX_RUT_LENGTH) return null
 
@@ -126,9 +109,7 @@ const parseLenient = (rut: unknown): DecomposedRut | null => {
 }
 
 // Canonical core: shape-contract parsing shared by the acceptance predicates
-// (`validate`/`isValidRut`/`isRutLike`). Same regex budget as before the
-// `splitCleanRut` extraction — the verifier character test simply moved from
-// `isCleanRut` into the splitter, where it also narrows the type.
+// (`validate`/`isValidRut`/`isRutLike`).
 const parseRutLike = (rut: unknown): DecomposedRut | null => {
   if (!isBoundedString(rut)) return null
 
@@ -141,20 +122,12 @@ const parseRutLike = (rut: unknown): DecomposedRut | null => {
     patterns.compact.test(input) || patterns.compactWithHyphen.test(input) || patterns.dotted.test(input)
   if (!hasValidShape) return null
 
-  // Reject non-canonical leading-zero padding. A real RUT body is never written
-  // with leading zeros (`12.345.678-5`, never `012.345.678-5`); padding only
-  // ever appears as a fixed-width storage artifact. Crucially it forms an
-  // *unbounded* family of distinct strings for one RUT (`12345678` =
-  // `012345678` = `0012345678` = …), a canonicalization hazard: a zero-padded
-  // variant must not slip past a strict uniqueness/identity gate. The lenient
-  // normalizers (`clean`/`format`/`equals`) still accept and strip these — only
-  // the acceptance predicates (`validate`/`isValidRut`/`isRutLike`, all routed
-  // through here) refuse them. Inspecting the trimmed first character is exact:
-  // every accepted shape begins with the body's most-significant digit, so a
-  // leading '0' can only be padding. (This guard — not the `0*` removal in
-  // `patterns` — is load-bearing: a single zero on a 7-digit body, e.g.
-  // `01234567-4`, is absorbed by `\d{7,8}` and then stripped by
-  // `normalizeRutValue`, so the pattern alone would let it through.)
+  // Reject leading-zero padding: a canonical RUT has none, and padding forms an
+  // unbounded family of strings for one RUT (`12345678` = `012345678` = …) that
+  // must not slip past an identity gate. Every accepted shape starts with the
+  // body's top digit, so a leading '0' is always padding. This guard — not the
+  // patterns — is load-bearing: `01234567-4` fits `\d{7,8}` and would then be
+  // silently stripped by `normalizeRutValue`.
   if (input[0] === '0') return null
 
   return splitCleanRut(normalizeRutValue(input))
@@ -207,6 +180,10 @@ const calculateVerifierForBody = (rutBody: string): VerifierDigit => {
   return VERIFIER_BY_CHECK_DIGIT[checkDigit]
 }
 
+// The one Modulo 11 validity predicate, shared by `validate`/`format`/`equals`
+// so the three can never drift apart.
+const isValidDecomposed = ({ body, verifier }: DecomposedRut): boolean => calculateVerifierForBody(body) === verifier
+
 const isSuspicious = (body: string): boolean => {
   const firstDigit = body[0]
   for (let index = 1; index < body.length; index += 1) {
@@ -248,7 +225,7 @@ const randomIntInclusive = (min: number, max: number): number => {
  * @param {SafeOptions} [options] - Configuration options.
  * @param {boolean} [options.throwOnError=true] - If true (default), throws an error for invalid RUTs. If false, returns null.
  * @returns {string | null} The cleaned RUT string, or null if invalid and throwOnError is false.
- * @throws {Error} If the RUT is not valid and throwOnError is true.
+ * @throws {InvalidRutError} If the RUT is not valid and throwOnError is true.
  */
 function clean(rut: string): string
 function clean(rut: string, options: { throwOnError: false }): string | null
@@ -266,7 +243,7 @@ function clean(rut: string, options?: SafeOptions): string | null {
  * @param {SafeOptions} [options] - Configuration options.
  * @param {boolean} [options.throwOnError=true] - If true (default), throws an error for invalid RUTs. If false, returns null.
  * @returns {string | null} The body of the RUT, or null if invalid and throwOnError is false.
- * @throws {Error} If the cleaned RUT is not valid and throwOnError is true.
+ * @throws {InvalidRutError} If the cleaned RUT is not valid and throwOnError is true.
  */
 function getBody(rut: string): string
 function getBody(rut: string, options: { throwOnError: false }): string | null
@@ -284,7 +261,7 @@ function getBody(rut: string, options?: SafeOptions): string | null {
  * @param {SafeOptions} [options] - Configuration options.
  * @param {boolean} [options.throwOnError=true] - If true (default), throws an error for invalid RUTs. If false, returns null.
  * @returns {string | null} The verifier digit of the RUT, or null if invalid and throwOnError is false.
- * @throws {Error} If the cleaned RUT is not valid and throwOnError is true.
+ * @throws {InvalidRutError} If the cleaned RUT is not valid and throwOnError is true.
  */
 function getVerifier(rut: string): VerifierDigit
 function getVerifier(rut: string, options: { throwOnError: false }): VerifierDigit | null
@@ -301,15 +278,13 @@ function getVerifier(rut: string, options?: SafeOptions): VerifierDigit | null {
  * @param {SafeOptions} [options] - Configuration options.
  * @param {boolean} [options.throwOnError=true] - If true (default), throws an error for invalid RUTs. If false, returns null.
  * @returns {DecomposedRut | null} An object containing the body and verifier of the RUT, or null if invalid and throwOnError is false.
- * @throws {Error} If the RUT is not valid and throwOnError is true.
+ * @throws {InvalidRutError} If the RUT is not valid and throwOnError is true.
  */
 function decompose(rut: string): DecomposedRut
 function decompose(rut: string, options: { throwOnError: false }): DecomposedRut | null
 function decompose(rut: string, options: { throwOnError: true }): DecomposedRut
 function decompose(rut: string, options?: SafeOptions): DecomposedRut | null
 function decompose(rut: string, options?: SafeOptions): DecomposedRut | null {
-  // `parseLenient` already returns the typed `{ body, verifier }` shape — the
-  // old defensive re-narrowing branch is gone by construction.
   const parsed = parseLenient(rut)
   return parsed ?? fail<DecomposedRut>(rut, options?.throwOnError ?? true)
 }
@@ -328,17 +303,15 @@ const isRutLike = (rut: unknown): boolean => parseRutLike(rut) !== null
  * @param {SafeOptions} [options] - Configuration options.
  * @param {boolean} [options.throwOnError=true] - If true (default), throws an error for invalid RUTs. If false, returns null.
  * @returns {string | null} The calculated verifier digit, or null if invalid and throwOnError is false.
- * @throws {Error} If the RUT body is invalid and throwOnError is true.
+ * @throws {InvalidRutError} If the RUT body is invalid and throwOnError is true.
  */
 function calculateVerifier(rutBody: string): VerifierDigit
 function calculateVerifier(rutBody: string, options: { throwOnError: false }): VerifierDigit | null
 function calculateVerifier(rutBody: string, options: { throwOnError: true }): VerifierDigit
 function calculateVerifier(rutBody: string, options?: SafeOptions): VerifierDigit | null
 function calculateVerifier(rutBody: string, options?: SafeOptions): VerifierDigit | null {
-  const throwOpt = withThrowOption(options?.throwOnError)
   const cleanedRut = normalizeRutBody(rutBody)
-
-  if (cleanedRut === null) return fail<VerifierDigit>(rutBody, throwOpt.throwOnError)
+  if (cleanedRut === null) return fail<VerifierDigit>(rutBody, options?.throwOnError ?? true)
   return calculateVerifierForBody(cleanedRut)
 }
 
@@ -361,7 +334,7 @@ const validate = (rut: unknown, options?: ValidateOptions): boolean => {
   if (!decomposed) return false
   if (options?.strict && isSuspicious(decomposed.body)) return false
 
-  return calculateVerifierForBody(decomposed.body) === decomposed.verifier
+  return isValidDecomposed(decomposed)
 }
 
 // Renders an already-parsed RUT in a canonical presentation — dotted
@@ -392,7 +365,7 @@ const formatDecomposed = ({ body, verifier }: DecomposedRut, dots: boolean): str
  * @param {boolean} [options.dots=true] - Whether to include dot separators in the formatted RUT.
  * @param {boolean} [options.throwOnError=true] - If true (default), throws an error for invalid RUTs. If false, returns null. Ignored in incremental mode.
  * @returns {string | null} The formatted RUT string, or null if invalid and throwOnError is false.
- * @throws {Error} If the RUT is invalid and throwOnError is true (only in non-incremental mode).
+ * @throws {InvalidRutError} If the RUT is invalid and throwOnError is true (only in non-incremental mode).
  */
 function format(rut: string, options?: Omit<FormatOptions, 'throwOnError'>): string
 function format(rut: string, options: FormatOptions & { throwOnError: false }): string | null
@@ -435,8 +408,7 @@ function format(rut: string, options?: FormatOptions): string | null {
   }
 
   const parsed = parseLenient(rut)
-  if (parsed === null) return fail<string>(rut, opts.throwOnError)
-  if (calculateVerifierForBody(parsed.body) !== parsed.verifier) return fail<string>(rut, opts.throwOnError)
+  if (parsed === null || !isValidDecomposed(parsed)) return fail<string>(rut, opts.throwOnError)
 
   return formatDecomposed(parsed, opts.dots)
 }
@@ -459,7 +431,7 @@ const generateOne = (bodyLength: 7 | 8, outputFormat: GenerateFormat): string =>
 /**
  * Generates random valid RUT string(s).
  * Randomness comes from Web Crypto (`globalThis.crypto`), guaranteed on every
- * supported runtime (Node >= 18 and all modern browsers). A `Math.random`
+ * supported runtime (Node >= 20 and all modern browsers). A `Math.random`
  * fallback is retained purely as a safety net for exotic embedded runtimes
  * without Web Crypto — generated RUTs are test fixtures, not secrets.
  * @param {GenerateOptions} [options] - Generation options.
@@ -512,28 +484,19 @@ function mask(rut: string, options?: SafeOptions): string | null {
 
 /**
  * Answers "are these the same RUT?" — both arguments must normalize to the same
- * value **and**, by default, that value must be a valid RUT (Modulo 11 checked).
+ * value **and**, by default, that value must pass Modulo 11.
  *
- * Shapes are irrelevant: dots, hyphens, leading-zero padding, surrounding
- * garbage and verifier case are all stripped before comparing, so
- * `equals('12.345.678-5', '123456785')` → `true` and
- * `equals('012345678-5', '12.345.678-5')` → `true`.
+ * Dots, hyphens, leading zeros, embedded garbage and verifier case are stripped
+ * before comparing: `equals('12.345.678-5', '123456785')` → `true`. Validity is
+ * checked on the *normalized* value, not on `validate()`'s canonical shape — so
+ * `equals('012345678-5', '12.345.678-5')` is `true` even though
+ * `validate('012345678-5')` is `false` (intended asymmetry; see README). Two
+ * strings with a wrong verifier are not "the same RUT" because they are not
+ * RUTs: `equals('12345678-9', '12345678-9')` → `false`. Pass
+ * `{ requireValid: false }` for the pure shape comparison (pre-5.0.0 behavior,
+ * e.g. deduplicating dirty datasets where the same typo twice is one entity).
  *
- * **Coherence rule (intended asymmetry with `validate`):** validity is checked
- * against the *normalized* value, not against `validate()`'s canonical shape
- * contract — `equals('012345678-5', '12.345.678-5')` is `true` even though
- * `validate('012345678-5')` is `false`. `equals` is a normalization operation
- * by definition; the default `requireValid` adds exactly one thing: the
- * verifier check. Two strings that normalize identically but carry a wrong
- * verifier are **not** "the same RUT" because they are not RUTs:
- * `equals('12345678-9', '12345678-9')` → `false`.
- *
- * Pass `{ requireValid: false }` for the pure normalization comparison
- * (pre-5.0.0 behavior): useful when deduplicating dirty datasets, where the
- * same typo in two rows is still the same entity.
- *
- * Returns `false` if either argument is not a string or cannot be normalized to
- * a RUT-shaped value.
+ * Returns `false` if either argument is not a string or is not RUT-shaped.
  * @param {unknown} a - First RUT.
  * @param {unknown} b - Second RUT.
  * @param {EqualsOptions} [options] - Comparison options.
@@ -546,10 +509,9 @@ const equals = (a: unknown, b: unknown, options?: EqualsOptions): boolean => {
   if (parsedA === null) return false
 
   const parsedB = parseLenient(b)
-  if (parsedB === null || parsedA.body !== parsedB.body || parsedA.verifier !== parsedB.verifier) return false
+  if (parsedB === null || parsedA.verifier !== parsedB.verifier || parsedA.body !== parsedB.body) return false
 
-  if (options?.requireValid === false) return true
-  return calculateVerifierForBody(parsedA.body) === parsedA.verifier
+  return options?.requireValid === false || isValidDecomposed(parsedA)
 }
 
 export {

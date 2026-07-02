@@ -51,7 +51,7 @@ need to act only if:
    systems) directly into `validate()` / `isValidRut()` / `isRutLike()`,
 2. you relied on `equals()` matching **invalid** RUT-shaped strings (dirty-data
    dedup), or
-3. you still call the long-deprecated `getInvalidRutError()`, or run Node 14/16.
+3. you still call the long-deprecated `getInvalidRutError()`, or run Node < 20.
 
 ### Upgrade notes
 
@@ -127,10 +127,12 @@ need to act only if:
   rows is still the same entity. The differential harness proves the parity on a
   50k-pair corpus.
 
-- **Node.js >= 18 required (`engines`).** Node 14 and 16 are long past
-  end-of-life; 18 guarantees `globalThis.crypto`. The `Math.random` fallback in
-  `generate()` is retained purely as a safety net for exotic embedded runtimes
-  and its JSDoc now says so (generated RUTs are test fixtures, not secrets).
+- **Node.js >= 20 required (`engines`).** Node 14–18 are past end-of-life, and
+  20 is the first floor that guarantees `globalThis.crypto` (a default global
+  since Node 19) — it also matches the versions CI actually tests. The
+  `Math.random` fallback in `generate()` is retained purely as a safety net for
+  exotic embedded runtimes and its JSDoc now says so (generated RUTs are test
+  fixtures, not secrets).
 
 ### Removed
 
