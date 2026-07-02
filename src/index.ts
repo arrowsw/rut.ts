@@ -63,8 +63,10 @@ const MAX_BODY_LENGTH = 8
  * runs (defense in depth alongside the non-backtracking patterns). 64 is an
  * arbitrary round number, generously above any legitimately-formatted RUT yet
  * small enough that the bounded patterns can never see an attack string.
- * Consequence: zero-padded inputs longer than 64 chars are rejected even
- * though older versions normalized them — see CHANGELOG "Changed (Breaking)".
+ * Note: `validate`/`isValidRut`/`isRutLike` reject leading-zero padding outright
+ * (a canonical RUT has none — see `parseRutLike`); this cap still bounds the
+ * lenient helpers (`clean`/`format`), which normalize zero-padded input up to
+ * 64 chars. See CHANGELOG "Changed (Breaking)".
  */
 const MAX_RUT_INPUT_LENGTH = 64
 const MIN_GENERATED_BODY = 10000000
@@ -74,9 +76,13 @@ const MAX_GENERATED_BODY_7 = 9999999
 const UINT32_RANGE = 0x100000000
 
 const patterns: ValidationPatterns = {
-  compact: /^0*\d{7,8}[\dkK]$/,
-  compactWithHyphen: /^0*\d{7,8}-[\dkK]$/,
-  dotted: /^0*\d{1,3}\.\d{3}\.\d{3}-[\dkK]$/,
+  // No leading-zero allowance (`0*`) here on purpose: a canonical RUT body has
+  // none, and `parseRutLike` rejects any leading zero explicitly (see the guard
+  // there). Dropping `0*` documents that intent at the grammar level — though
+  // the guard, not these patterns, is what actually closes the gap.
+  compact: /^\d{7,8}[\dkK]$/,
+  compactWithHyphen: /^\d{7,8}-[\dkK]$/,
+  dotted: /^\d{1,3}\.\d{3}\.\d{3}-[\dkK]$/,
   invalidRutChars: /[^0-9kK]+/g,
   bodySeparators: /[.\-\s]+/g,
   bodyDigits: /^\d+$/,
@@ -125,6 +131,22 @@ const parseRutLike = (rut: unknown): { body: string; verifier: string } | null =
   const hasValidShape =
     patterns.compact.test(input) || patterns.compactWithHyphen.test(input) || patterns.dotted.test(input)
   if (!hasValidShape) return null
+
+  // Reject non-canonical leading-zero padding. A real RUT body is never written
+  // with leading zeros (`12.345.678-5`, never `012.345.678-5`); padding only
+  // ever appears as a fixed-width storage artifact. Crucially it forms an
+  // *unbounded* family of distinct strings for one RUT (`12345678` =
+  // `012345678` = `0012345678` = …), a canonicalization hazard: a zero-padded
+  // variant must not slip past a strict uniqueness/identity gate. The lenient
+  // normalizers (`clean`/`format`/`equals`) still accept and strip these — only
+  // the acceptance predicates (`validate`/`isValidRut`/`isRutLike`, all routed
+  // through here) refuse them. Inspecting the trimmed first character is exact:
+  // every accepted shape begins with the body's most-significant digit, so a
+  // leading '0' can only be padding. (This guard — not the `0*` removal in
+  // `patterns` — is load-bearing: a single zero on a 7-digit body, e.g.
+  // `01234567-4`, is absorbed by `\d{7,8}` and then stripped by
+  // `normalizeRutValue`, so the pattern alone would let it through.)
+  if (input[0] === '0') return null
 
   const cleaned = normalizeRutValue(input)
   if (!isCleanRut(cleaned)) return null
@@ -328,9 +350,16 @@ function calculateVerifier(rutBody: string, options?: SafeOptions): VerifierDigi
 
 /**
  * Validates a given RUT string, optionally with strict mode to also check for suspicious patterns.
+ *
+ * Accepts the three canonical shapes — compact (`123456785`), compact + hyphen
+ * (`12345678-5`) and dotted (`12.345.678-5`) — with optional surrounding
+ * whitespace and a case-insensitive `k`/`K` verifier. Non-canonical input is
+ * rejected, **including leading-zero padding** (`012.345.678-5`): a real RUT
+ * carries no leading zeros, so normalize zero-padded values with `clean()`
+ * first if you need to accept them.
  * @param {unknown} rut - The RUT string to validate.
  * @param {ValidateOptions} [options] - Validation options.
- * @param {boolean} [options.strict=false] - If true, rejects suspicious RUTs (e.g., 11.111.111-1).
+ * @param {boolean} [options.strict=false] - If true, additionally rejects suspicious repeated-digit placeholders (e.g., 11.111.111-1).
  * @returns {boolean} True if the RUT is valid, false otherwise.
  */
 const validate = (rut: unknown, options?: ValidateOptions): boolean => {
@@ -484,11 +513,23 @@ function mask(rut: string, options?: SafeOptions): string | null {
 
 /**
  * Compares two RUTs for equality after normalization, so different shapes of the
- * same RUT match: `equals('12.345.678-5', '123456785')` → true. Returns false if
- * either argument is not a structurally valid RUT.
+ * same RUT match: `equals('12.345.678-5', '123456785')` → `true`.
+ *
+ * This is a **normalization comparison, not validation**. It strips dots,
+ * hyphens, leading zeros and case via `clean()` and compares the results — it
+ * does **not** check the Modulo 11 verifier. Two RUT-shaped strings with the
+ * same verifier therefore compare equal even when that verifier is wrong
+ * (`equals('12345678-9', '12345678-9')` → `true`, though neither is a valid
+ * RUT), and a zero-padded value still matches its canonical form
+ * (`equals('012345678-5', '12345678-5')` → `true`) even though `validate()`
+ * rejects the padded shape. Use `validate()` / `isValidRut()` when you need
+ * validity, not just sameness.
+ *
+ * Returns `false` if either argument is not a string or cannot be normalized to
+ * a RUT-shaped value (i.e. `clean()` returns `null`).
  * @param {unknown} a - First RUT.
  * @param {unknown} b - Second RUT.
- * @returns {boolean} True if both normalize to the same RUT, false otherwise.
+ * @returns {boolean} True if both normalize to the same value, false otherwise.
  */
 const equals = (a: unknown, b: unknown): boolean => {
   if (typeof a !== 'string' || typeof b !== 'string') return false

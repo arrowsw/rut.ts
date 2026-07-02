@@ -140,7 +140,7 @@ formatting. That posture is the point of the library:
 ### Accepted input formats (the validation contract)
 
 `validate()` and `isRutLike()` accept **only** these shapes (optionally with
-leading zeros and surrounding whitespace, verifier `k`/`K` case-insensitive):
+surrounding whitespace, verifier `k`/`K` case-insensitive):
 
 | Shape            | Example                       | Notes                                  |
 | ---------------- | ----------------------------- | -------------------------------------- |
@@ -148,10 +148,17 @@ leading zeros and surrounding whitespace, verifier `k`/`K` case-insensitive):
 | Compact + hyphen | `12345678-5`                  |                                        |
 | Canonical dotted | `12.345.678-5`, `1.234.567-4` | Chilean grouping; the `-` is required  |
 
-Anything else is rejected, **including non-canonical dot grouping** that older
-versions accepted (`12.345678-5`, `12345.678-5`, `1.2.3.4-5`), the dotted shape
+Anything else is rejected, **including leading-zero padding** (`012.345.678-5`,
+`0012345678` — a canonical RUT has none, and padding forms an unbounded family
+of strings for one RUT), **non-canonical dot grouping** that older versions
+accepted (`12.345678-5`, `12345.678-5`, `1.2.3.4-5`), the dotted shape
 **without its verifier hyphen** (`12.345.6785`), internal spaces, commas, and
 any input longer than 64 chars.
+
+> **Zero-padded data?** Leading zeros are rejected by `validate()` /
+> `isValidRut()` / `isRutLike()`, but `clean()`, `format()` and `equals()` stay
+> permissive and still strip them. If you ingest fixed-width/zero-padded values,
+> pipe them through `clean()` first and then `validate()` the result.
 
 > The 64-char limit is a **security bound, not a format rule**. A real RUT is
 > ~9 significant characters, so the cap never rejects a realistic RUT — it just

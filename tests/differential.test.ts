@@ -1,9 +1,10 @@
 /**
- * Differential harness: v3.4.0 `validate()` vs v4.0.0 `validate()`.
+ * Differential harness: v3.4.0 `validate()` vs the current `validate()`.
  *
  * Goal: characterize EXACTLY which input shapes change their validation result
- * between the last 3.x release and 4.0.0, so a large production dataset can be
- * assessed for impact before upgrading.
+ * between the last 3.x release and the current src, so a large production
+ * dataset can be assessed for impact before upgrading. (The frozen baseline is
+ * 3.4.0 — the last release a typical dataset predates — not the previous minor.)
  *
  * This is intentionally a single self-contained file: the project's jest
  * `testRegex` matches every `*.ts` under `tests/`, so sibling helper modules
@@ -162,8 +163,11 @@ function runDifferential(targetSize: number) {
       rows.push({ input: `${body}-${bad}`, shape: 'invalid-wrong-dv' })
     } else if (pick < 0.7) {
       const n = randInt(1, 15)
-      let s = ''
-      for (let i = 0; i < n; i++) s += String(randInt(0, 9))
+      // First digit is non-zero: leading-zero acceptance is a documented v5
+      // regression characterized by the dedicated `leading-zeros` shape, so this
+      // catch-all stays clean (any regression it reports is a *real* surprise).
+      let s = String(randInt(1, 9))
+      for (let i = 1; i < n; i++) s += String(randInt(0, 9))
       rows.push({ input: s, shape: 'random-digits' })
     } else if (pick < 0.9) {
       rows.push({
@@ -255,7 +259,7 @@ function runDifferential(targetSize: number) {
       .map(([shape, e]) => `| \`${shape}\` | ${e.count} | ${e.samples.map((s) => `\`${s}\``).join(', ')} |`)
       .join('\n') || '| _(none)_ | 0 | |'
 
-  const report = `# Differential report — v3.4.0 vs v4.0.0 \`validate()\`
+  const report = `# Differential report — v3.4.0 vs current (5.0.0) \`validate()\`
 
 - Seed: \`0x52555420\` (reproducible)
 - Corpus size: **${total.toLocaleString('en-US')}**
@@ -278,17 +282,17 @@ ${fmt(newAccepts)}
 
 ## Security spot checks
 
-- \`validate('8.888.888-K', { strict: true })\` — v3.4.0: **${strictBypassOld}** (bug: should be false), v4.0.0: **${strictBypassNew}**
+- \`validate('8.888.888-K', { strict: true })\` — v3.4.0: **${strictBypassOld}** (bug: should be false), current: **${strictBypassNew}**
 - Non-string inputs with diverging result: **${nonStringDivergence.length}** ${
     nonStringDivergence.length ? `(${nonStringDivergence.map(String).join(', ')})` : '(none — both reject)'
   }
-- ReDoS: \`validate('0'.repeat(100000) + 'x')\` on v4.0.0 → **${redosV4Result}** in **${redosV4Ms.toFixed(2)} ms** (the frozen 3.4.0 regex exhibits catastrophic backtracking on this input and is deliberately not run here)
+- ReDoS: \`validate('0'.repeat(100000) + 'x')\` on current → **${redosV4Result}** in **${redosV4Ms.toFixed(2)} ms** (the frozen 3.4.0 regex exhibits catastrophic backtracking on this input and is deliberately not run here)
 
 ## How to read this
 
 \`generate()\`/canonical inputs land in *Agree valid*. The **Regressions** table
 is the actionable part: every shape there is an input format that v3.4.0
-accepted and v4.0.0 now rejects. Confirm your production dataset uses **none**
+accepted and the current src now rejects. Confirm your production dataset uses **none**
 of those shapes (or normalize it to compact / compact+hyphen / canonical-dotted)
 before upgrading. This harness cannot prove safety on data it never saw — it
 enumerates exactly what changed.
@@ -316,7 +320,7 @@ enumerates exactly what changed.
 const FULL = process.env.RUN_DIFFERENTIAL === '1'
 const CORPUS = Number(process.env.DIFF_CORPUS ?? 1_000_000)
 
-;(FULL ? describe : describe.skip)('differential v3.4.0 vs v4.0.0 (full corpus)', () => {
+;(FULL ? describe : describe.skip)('differential v3.4.0 vs current (full corpus)', () => {
   jest.setTimeout(120_000)
 
   // Run inside beforeAll, NOT in the describe body: Jest executes the body of a
@@ -329,20 +333,28 @@ const CORPUS = Number(process.env.DIFF_CORPUS ?? 1_000_000)
   })
 
   test('canonical-valid inputs never regress (no false negatives on accepted shapes)', () => {
-    // Regressions are only allowed in shapes that v4 *intentionally and
-    // documentably* rejects (see CHANGELOG "Changed (Breaking)"):
-    //  - non-canonical dot grouping (#2)
+    // Regressions are only allowed in shapes that the current src *intentionally
+    // and documentably* rejects (see CHANGELOG "Changed (Breaking)"):
+    //  - non-canonical dot grouping (4.0.0 #2)
     //  - dotted body without the verifier hyphen (4.1.0 fix)
-    //  - inputs longer than the 64-char cap (#2)
+    //  - inputs longer than the 64-char cap (4.0.0 #2)
+    //  - leading-zero padding (5.0.0): now non-canonical; `leading-zeros` and the
+    //    zero-padded `len-64-padded-valid` row both flip from accept to reject.
     // The every-digit-dotted / internal-spaces / comma-separated shapes were
     // already rejected by 3.4.0 too, so they must NOT appear here.
-    const allowed = new Set(['noncanonical-grouping', 'dotted-no-hyphen', 'len-65-over-cap'])
+    const allowed = new Set([
+      'noncanonical-grouping',
+      'dotted-no-hyphen',
+      'len-65-over-cap',
+      'leading-zeros',
+      'len-64-padded-valid',
+    ])
     const unexpected = result.regressionShapes.filter((s) => !allowed.has(s))
     console.log(JSON.stringify(result, null, 2))
     expect(unexpected).toEqual([])
   })
 
-  test('v4.0.0 introduces no surprising new acceptances', () => {
+  test('current introduces no surprising new acceptances', () => {
     // The only relaxation is whitespace trimming around otherwise-valid input.
     const allowed = new Set(['surrounding-space'])
     const unexpected = result.newAcceptShapes.filter((s) => !allowed.has(s))
@@ -354,7 +366,7 @@ const CORPUS = Number(process.env.DIFF_CORPUS ?? 1_000_000)
     expect(result.strictBypassNew).toBe(false) // fixed in 4.0.0
   })
 
-  test('v4.0.0 is ReDoS-safe on a 100k-char adversarial input', () => {
+  test('current is ReDoS-safe on a 100k-char adversarial input', () => {
     expect(result.redosV4Result).toBe(false)
     expect(result.redosV4Ms).toBeLessThan(50)
   })
@@ -376,7 +388,7 @@ const CORPUS = Number(process.env.DIFF_CORPUS ?? 1_000_000)
    * Mini-corpus run on every CI invocation (no env flag required). This is a
    * 1 000-case version of the full differential — small enough to be cheap
    * (< 100 ms locally) but large enough to make sure that the only divergence
-   * shapes between v3.4.0 and v4.0.0 are the ones documented in the CHANGELOG.
+   * shapes between v3.4.0 and the current src are the ones documented in the CHANGELOG.
    *
    * The full 1 M-case report-writing run is still gated behind
    * `RUN_DIFFERENTIAL=1`; this block does NOT write any report.
