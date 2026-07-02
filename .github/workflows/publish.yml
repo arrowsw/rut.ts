@@ -1,8 +1,8 @@
 name: Publish
 
-# Release ritual:
-#   npm version patch        # bumps package.json + creates the vX.Y.Z tag
-#   git push --follow-tags   # this workflow builds, tests, and publishes
+# Release process: see RELEASING.md. Version bump + CHANGELOG land in a
+# dedicated release PR; pushing the vX.Y.Z tag afterwards triggers this
+# workflow to build, test, and publish.
 on:
   push:
     tags: ['v*']
