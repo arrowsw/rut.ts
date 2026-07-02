@@ -19,6 +19,7 @@ import {
 } from '../src'
 import type {
   DecomposedRut,
+  EqualsOptions,
   FormatOptions,
   ParseOptions,
   ParseResult,
@@ -132,9 +133,11 @@ const _typecheck = () => {
   expectTypeOf(mask('x', { throwOnError: false })).toEqualTypeOf<string | null>()
   expectTypeOf(mask('x', { throwOnError: true })).toEqualTypeOf<string>()
 
-  // ── equals (predicate over unknown) ────────────────────────────────────
+  // ── equals (predicate over unknown, with options) ──────────────────────
   expectTypeOf(equals('a', 'b')).toEqualTypeOf<boolean>()
   expectTypeOf(equals(1 as unknown, 2 as unknown)).toEqualTypeOf<boolean>()
+  expectTypeOf(equals('a', 'b', { requireValid: false })).toEqualTypeOf<boolean>()
+  expectTypeOf<EqualsOptions>().toMatchObjectType<{ requireValid?: boolean }>()
 
   // ── InvalidRutError (typed Error subclass with a literal code) ─────────
   expectTypeOf(new InvalidRutError()).toExtend<Error>()

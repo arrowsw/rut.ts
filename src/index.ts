@@ -23,6 +23,7 @@ type GenerateFormat = 'dotted' | 'compact' | 'hyphen'
 type GenerateOptions = { bodyLength?: 7 | 8; format?: GenerateFormat; count?: number }
 
 type ParseOptions = { strict?: boolean; canonicalOnly?: boolean }
+type EqualsOptions = { requireValid?: boolean }
 /**
  * Discriminated union returned by {@link parse}. Narrow on `success`:
  * the `true` branch carries the branded {@link Rut} plus its parts and the
@@ -566,29 +567,45 @@ function mask(rut: string, options?: SafeOptions): string | null {
 }
 
 /**
- * Compares two RUTs for equality after normalization, so different shapes of the
- * same RUT match: `equals('12.345.678-5', '123456785')` → `true`.
+ * Answers "are these the same RUT?" — both arguments must normalize to the same
+ * value **and**, by default, that value must be a valid RUT (Modulo 11 checked).
  *
- * This is a **normalization comparison, not validation**. It strips dots,
- * hyphens, leading zeros and case via `clean()` and compares the results — it
- * does **not** check the Modulo 11 verifier. Two RUT-shaped strings with the
- * same verifier therefore compare equal even when that verifier is wrong
- * (`equals('12345678-9', '12345678-9')` → `true`, though neither is a valid
- * RUT), and a zero-padded value still matches its canonical form
- * (`equals('012345678-5', '12345678-5')` → `true`) even though `validate()`
- * rejects the padded shape. Use `validate()` / `isValidRut()` when you need
- * validity, not just sameness.
+ * Shapes are irrelevant: dots, hyphens, leading-zero padding, surrounding
+ * garbage and verifier case are all stripped before comparing, so
+ * `equals('12.345.678-5', '123456785')` → `true` and
+ * `equals('012345678-5', '12.345.678-5')` → `true`.
+ *
+ * **Coherence rule (intended asymmetry with `validate`):** validity is checked
+ * against the *normalized* value, not against `validate()`'s canonical shape
+ * contract — `equals('012345678-5', '12.345.678-5')` is `true` even though
+ * `validate('012345678-5')` is `false`. `equals` is a normalization operation
+ * by definition; the default `requireValid` adds exactly one thing: the
+ * verifier check. Two strings that normalize identically but carry a wrong
+ * verifier are **not** "the same RUT" because they are not RUTs:
+ * `equals('12345678-9', '12345678-9')` → `false`.
+ *
+ * Pass `{ requireValid: false }` for the pure normalization comparison
+ * (pre-5.0.0 behavior): useful when deduplicating dirty datasets, where the
+ * same typo in two rows is still the same entity.
  *
  * Returns `false` if either argument is not a string or cannot be normalized to
- * a RUT-shaped value (i.e. `clean()` returns `null`).
+ * a RUT-shaped value.
  * @param {unknown} a - First RUT.
  * @param {unknown} b - Second RUT.
- * @returns {boolean} True if both normalize to the same value, false otherwise.
+ * @param {EqualsOptions} [options] - Comparison options.
+ * @param {boolean} [options.requireValid=true] - If true (default), both
+ *   arguments must also be a valid RUT after normalization.
+ * @returns {boolean} True if both normalize to the same (by default valid) RUT.
  */
-const equals = (a: unknown, b: unknown): boolean => {
-  if (typeof a !== 'string' || typeof b !== 'string') return false
-  const normalizedA = clean(a, { throwOnError: false })
-  return normalizedA !== null && normalizedA === clean(b, { throwOnError: false })
+const equals = (a: unknown, b: unknown, options?: EqualsOptions): boolean => {
+  const parsedA = parseLenient(a)
+  if (parsedA === null) return false
+
+  const parsedB = parseLenient(b)
+  if (parsedB === null || parsedA.body !== parsedB.body || parsedA.verifier !== parsedB.verifier) return false
+
+  if (options?.requireValid === false) return true
+  return calculateVerifierForBody(parsedA.body) === parsedA.verifier
 }
 
 export {
@@ -613,6 +630,7 @@ export type {
   ValidateOptions,
   ParseOptions,
   ParseResult,
+  EqualsOptions,
   VerifierDigit,
   Rut,
   GenerateOptions,
