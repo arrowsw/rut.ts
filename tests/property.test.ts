@@ -1,6 +1,18 @@
 import fc from 'fast-check'
 
-import { calculateVerifier, clean, decompose, equals, format, isRutLike, isValidRut, mask, validate } from '../src'
+import {
+  calculateVerifier,
+  clean,
+  decompose,
+  equals,
+  format,
+  generate,
+  isRutLike,
+  isValidRut,
+  mask,
+  parse,
+  validate,
+} from '../src'
 
 /**
  * Property-based tests (fast-check). These complement the hand-written
@@ -125,6 +137,85 @@ describe('property: equals / mask', () => {
         const middle = body.slice(body.length - 6)
         return masked === `${head}.***.***-${verifier}` && !masked.includes(middle)
       }),
+      RUNS,
+    )
+  })
+})
+
+// Mixed-input arbitrary for the 5.0.0 laws: plain fuzz strings would make the
+// implications vacuously true almost always, so valid RUTs, zero-padded
+// variants and wrong-DV strings are folded in to actually exercise both sides.
+const zeroPadded = validRut.map((rut) => `00${clean(rut)}`)
+const wrongDv = validBody.map((body) => {
+  const good = calculateVerifier(body)
+  return `${body}-${good === '0' ? '1' : '0'}`
+})
+const anyInput = fc.oneof(fc.string(), validRut, zeroPadded, wrongDv)
+
+describe('property: parse laws (5.0.0 API coherence)', () => {
+  test('parse(generate()) succeeds for every format and body length', () => {
+    fc.assert(
+      fc.property(
+        fc.constantFrom<'dotted' | 'compact' | 'hyphen'>('dotted', 'compact', 'hyphen'),
+        fc.constantFrom<7 | 8>(7, 8),
+        (fmt, bodyLength) => parse(generate({ format: fmt, bodyLength })).success,
+      ),
+      RUNS,
+    )
+  })
+
+  test('parse success ⟹ formatted is canonical-valid: validate(parse(x).formatted)', () => {
+    fc.assert(
+      fc.property(anyInput, (x) => {
+        const result = parse(x)
+        return !result.success || validate(result.formatted)
+      }),
+      RUNS,
+    )
+  })
+
+  test('parse success ⟹ equals(x, parse(x).formatted)', () => {
+    fc.assert(
+      fc.property(anyInput, (x) => {
+        const result = parse(x)
+        return !result.success || equals(x, result.formatted)
+      }),
+      RUNS,
+    )
+  })
+
+  test('canonicalOnly is monotone: parse(x, {canonicalOnly}) success ⟹ parse(x) success', () => {
+    fc.assert(
+      fc.property(anyInput, (x) => !parse(x, { canonicalOnly: true }).success || parse(x).success),
+      RUNS,
+    )
+  })
+})
+
+describe('property: equals laws (5.0.0 API coherence)', () => {
+  test("default reflexivity coincides with normalized validity: equals(a, a) === validate(clean(a, {throwOnError: false}) ?? '')", () => {
+    fc.assert(
+      fc.property(anyInput, (a) => equals(a, a) === validate(clean(a, { throwOnError: false }) ?? '')),
+      RUNS,
+    )
+  })
+
+  test('equals(clean(a), a) for every valid a', () => {
+    fc.assert(
+      fc.property(validRut, (a) => equals(clean(a), a)),
+      RUNS,
+    )
+  })
+
+  test('symmetry in both modes over arbitrary input', () => {
+    fc.assert(
+      fc.property(
+        anyInput,
+        anyInput,
+        (a, b) =>
+          equals(a, b) === equals(b, a) &&
+          equals(a, b, { requireValid: false }) === equals(b, a, { requireValid: false }),
+      ),
       RUNS,
     )
   })
