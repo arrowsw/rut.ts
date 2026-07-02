@@ -102,25 +102,39 @@ const isBoundedString = (input: unknown): input is string =>
 const normalizeRutValue = (rut: string): string =>
   rut.replace(patterns.invalidRutChars, '').replace(/^0+/, '').toUpperCase()
 
-const isCleanRut = (rut: string): boolean => {
-  if (rut.length < MIN_RUT_LENGTH || rut.length > MAX_RUT_LENGTH) return false
-
-  const body = rut.slice(0, -1)
-  const verifier = rut.slice(-1)
-  return (
-    body.length >= MIN_BODY_LENGTH &&
-    body.length <= MAX_BODY_LENGTH &&
-    patterns.bodyDigits.test(body) &&
-    /^[\dK]$/.test(verifier)
-  )
-}
-
 const isVerifierDigit = (value: string): value is VerifierDigit => /^[\dK]$/.test(value)
 
-// Internal parse result — verifier stays a plain `string` here so the hot path
-// (validate) does not pay an extra `isVerifierDigit` regex. The public
-// `DecomposedRut` narrows it to `VerifierDigit` in `decompose()`.
-const parseRutLike = (rut: unknown): { body: string; verifier: string } | null => {
+// Validates a normalized compact string and splits it into the shared internal
+// shape. This is the single point where the verifier is narrowed to
+// `VerifierDigit`, so every caller receives a typed `DecomposedRut` and never
+// needs a defensive re-narrowing branch of its own. The overall length bound
+// (8–9 chars) already implies the body bound (7–8 digits), so only the total
+// length, the body digits and the verifier character are checked.
+const splitCleanRut = (cleaned: string): DecomposedRut | null => {
+  if (cleaned.length < MIN_RUT_LENGTH || cleaned.length > MAX_RUT_LENGTH) return null
+
+  const body = cleaned.slice(0, -1)
+  const verifier = cleaned.slice(-1)
+  if (!patterns.bodyDigits.test(body)) return null
+
+  return isVerifierDigit(verifier) ? { body, verifier } : null
+}
+
+// Lenient core: normalization-first parsing shared by the recovery helpers
+// (`clean`/`decompose`/`getBody`/`getVerifier`/`mask`/`format`). Strips
+// separators, embedded garbage, leading zeros and case before splitting; it
+// deliberately does NOT check the Modulo 11 verifier — these helpers recover
+// RUT-shaped values from messy input, they don't assert validity.
+const parseLenient = (rut: unknown): DecomposedRut | null => {
+  if (!isBoundedString(rut)) return null
+  return splitCleanRut(normalizeRutValue(rut))
+}
+
+// Canonical core: shape-contract parsing shared by the acceptance predicates
+// (`validate`/`isValidRut`/`isRutLike`). Same regex budget as before the
+// `splitCleanRut` extraction — the verifier character test simply moved from
+// `isCleanRut` into the splitter, where it also narrows the type.
+const parseRutLike = (rut: unknown): DecomposedRut | null => {
   if (!isBoundedString(rut)) return null
 
   // `isBoundedString` already capped the raw length; trimming can only shrink it,
@@ -148,13 +162,7 @@ const parseRutLike = (rut: unknown): { body: string; verifier: string } | null =
   // `normalizeRutValue`, so the pattern alone would let it through.)
   if (input[0] === '0') return null
 
-  const cleaned = normalizeRutValue(input)
-  if (!isCleanRut(cleaned)) return null
-
-  return {
-    body: cleaned.slice(0, -1),
-    verifier: cleaned.slice(-1),
-  }
+  return splitCleanRut(normalizeRutValue(input))
 }
 
 /** Internal helper to clean RUT without complete-RUT validation (used for incremental formatting) */
@@ -246,13 +254,8 @@ function clean(rut: string, options: { throwOnError: false }): string | null
 function clean(rut: string, options: { throwOnError: true }): string
 function clean(rut: string, options?: SafeOptions): string | null
 function clean(rut: string, options?: SafeOptions): string | null {
-  const shouldThrow = options?.throwOnError ?? true
-  if (!isBoundedString(rut)) return fail<string>(rut, shouldThrow)
-
-  const cleanRut = normalizeRutValue(rut)
-  if (!isCleanRut(cleanRut)) return fail<string>(rut, shouldThrow)
-
-  return cleanRut
+  const parsed = parseLenient(rut)
+  return parsed ? parsed.body + parsed.verifier : fail<string>(rut, options?.throwOnError ?? true)
 }
 
 /**
@@ -269,8 +272,8 @@ function getBody(rut: string, options: { throwOnError: false }): string | null
 function getBody(rut: string, options: { throwOnError: true }): string
 function getBody(rut: string, options?: SafeOptions): string | null
 function getBody(rut: string, options?: SafeOptions): string | null {
-  const cleaned = clean(rut, withThrowOption(options?.throwOnError))
-  return cleaned?.slice(0, -1) ?? null
+  const parsed = parseLenient(rut)
+  return parsed ? parsed.body : fail<string>(rut, options?.throwOnError ?? true)
 }
 
 /**
@@ -287,11 +290,8 @@ function getVerifier(rut: string, options: { throwOnError: false }): VerifierDig
 function getVerifier(rut: string, options: { throwOnError: true }): VerifierDigit
 function getVerifier(rut: string, options?: SafeOptions): VerifierDigit | null
 function getVerifier(rut: string, options?: SafeOptions): VerifierDigit | null {
-  const cleaned = clean(rut, withThrowOption(options?.throwOnError))
-  if (cleaned === null) return null
-
-  const verifier = cleaned.slice(-1)
-  return isVerifierDigit(verifier) ? verifier : null
+  const parsed = parseLenient(rut)
+  return parsed ? parsed.verifier : fail<VerifierDigit>(rut, options?.throwOnError ?? true)
 }
 
 /**
@@ -307,17 +307,10 @@ function decompose(rut: string, options: { throwOnError: false }): DecomposedRut
 function decompose(rut: string, options: { throwOnError: true }): DecomposedRut
 function decompose(rut: string, options?: SafeOptions): DecomposedRut | null
 function decompose(rut: string, options?: SafeOptions): DecomposedRut | null {
-  // Single-pass: `clean()` normalizes and validates once. (Previously this
-  // called getBody + getVerifier, each of which re-ran clean — double work.)
-  const cleaned = clean(rut, withThrowOption(options?.throwOnError))
-  if (cleaned === null) return null
-
-  const verifier = cleaned.slice(-1)
-  // `isCleanRut` (inside clean) already guaranteed the last char is [\dK], so
-  // the false branch is defensive only.
-  return isVerifierDigit(verifier)
-    ? { body: cleaned.slice(0, -1), verifier }
-    : fail<DecomposedRut>(rut, options?.throwOnError ?? true)
+  // `parseLenient` already returns the typed `{ body, verifier }` shape — the
+  // old defensive re-narrowing branch is gone by construction.
+  const parsed = parseLenient(rut)
+  return parsed ?? fail<DecomposedRut>(rut, options?.throwOnError ?? true)
 }
 
 /**
@@ -368,6 +361,20 @@ const validate = (rut: unknown, options?: ValidateOptions): boolean => {
   if (options?.strict && isSuspicious(decomposed.body)) return false
 
   return calculateVerifierForBody(decomposed.body) === decomposed.verifier
+}
+
+// Renders an already-parsed RUT in a canonical presentation — dotted
+// (`12.345.678-5`) or hyphen-only (`12345678-5`). Pure string assembly:
+// callers own any validity check.
+const formatDecomposed = ({ body, verifier }: DecomposedRut, dots: boolean): string => {
+  if (!dots) return `${body}-${verifier}`
+
+  const compact = body + verifier
+  let result = compact.slice(-4, -1) + '-' + verifier
+  for (let i = 4; i < compact.length; i += 3) {
+    result = compact.slice(-3 - i, -i) + '.' + result
+  }
+  return result
 }
 
 /**
@@ -426,21 +433,11 @@ function format(rut: string, options?: FormatOptions): string | null {
     return result
   }
 
-  const cleanRut = clean(rut, withThrowOption(opts.throwOnError))
-  if (cleanRut === null) return null
+  const parsed = parseLenient(rut)
+  if (parsed === null) return fail<string>(rut, opts.throwOnError)
+  if (calculateVerifierForBody(parsed.body) !== parsed.verifier) return fail<string>(rut, opts.throwOnError)
 
-  const body = cleanRut.slice(0, -1)
-  const verifier = cleanRut.slice(-1)
-  if (calculateVerifierForBody(body) !== verifier) return fail<string>(rut, opts.throwOnError)
-
-  if (opts.dots) {
-    let result = cleanRut.slice(-4, -1) + '-' + cleanRut.substring(cleanRut.length - 1)
-    for (let i = 4; i < cleanRut.length; i += 3) {
-      result = cleanRut.slice(-3 - i, -i) + '.' + result
-    }
-    return result
-  }
-  return cleanRut.slice(0, -1) + '-' + cleanRut.substring(cleanRut.length - 1)
+  return formatDecomposed(parsed, opts.dots)
 }
 
 const generateOne = (bodyLength: 7 | 8, outputFormat: GenerateFormat): string => {
@@ -502,13 +499,11 @@ function mask(rut: string, options: { throwOnError: false }): string | null
 function mask(rut: string, options: { throwOnError: true }): string
 function mask(rut: string, options?: SafeOptions): string | null
 function mask(rut: string, options?: SafeOptions): string | null {
-  const cleaned = clean(rut, withThrowOption(options?.throwOnError))
-  if (cleaned === null) return null
+  const parsed = parseLenient(rut)
+  if (parsed === null) return fail<string>(rut, options?.throwOnError ?? true)
 
-  const body = cleaned.slice(0, -1)
-  const verifier = cleaned.slice(-1)
-  const head = body.slice(0, body.length - 6) // 1 digit for a 7-digit body, 2 for an 8-digit body
-  return `${head}.***.***-${verifier}`
+  const head = parsed.body.slice(0, parsed.body.length - 6) // 1 digit for a 7-digit body, 2 for an 8-digit body
+  return `${head}.***.***-${parsed.verifier}`
 }
 
 /**
