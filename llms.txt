@@ -2,18 +2,18 @@
 
 > A modern TypeScript library for handling Chilean RUT (Rol Único Tributario) validation, formatting, cleaning, and generation with full type safety.
 
-Rut.ts provides a comprehensive set of utilities for working with Chilean RUTs - the unique tax identification numbers used throughout Chile. The library supports validation (including strict mode for suspicious patterns), a branded `Rut` type narrowed by a type guard (`isValidRut`), a typed `InvalidRutError`, formatting (both standard and incremental for real-time input), masking for safe logging (`mask`), normalized comparison (`equals`), cleaning, decomposition, configurable random generation, and verifier digit calculation. It's fully typed, tree-shakeable, supports both ESM and CommonJS, and runs in Node.js, the browser, Deno, and Bun (using Web Crypto when available). The RUT format follows the pattern `XX.XXX.XXX-Y` where the verifier digit is calculated using the Modulo 11 algorithm.
+Rut.ts provides a comprehensive set of utilities for working with Chilean RUTs - the unique tax identification numbers used throughout Chile. The library supports a never-throwing `parse()` entry point (discriminated union, recommended for data ingestion), validation (including strict mode for suspicious patterns), a branded `Rut` type minted by a type guard (`isValidRut`) or by `parse()`, a typed `InvalidRutError`, formatting (both standard and incremental for real-time input), masking for safe logging (`mask`), validity-aware comparison (`equals`), cleaning, decomposition, configurable random generation, and verifier digit calculation. It's fully typed, tree-shakeable, supports both ESM and CommonJS, and runs in Node.js (>= 18), the browser, Deno, and Bun. The RUT format follows the pattern `XX.XXX.XXX-Y` where the verifier digit is calculated using the Modulo 11 algorithm.
 
-As of **v4.0.0** (a breaking release focused on production identity hardening), `validate()` and `isRutLike()` accept only three canonical shapes — compact (`123456785`), compact + hyphen (`12345678-5`), and canonical dotted (`12.345.678-5`), with optional surrounding whitespace. The dotted shape requires its verifier hyphen: `12.345.6785` (dots but no hyphen) is rejected, as is any non-canonical dot grouping that 3.x tolerated (`12.345678-5`, `12345.678-5`). As of **v5.0.0**, leading-zero padding is also rejected by the acceptance predicates `validate()`/`isValidRut()`/`isRutLike()`: a canonical RUT carries no leading zeros, so `012.345.678-5` and `0012345678` are non-canonical and return `false`. Normalize zero-padded input with `clean()` first if you need to accept it — the lenient helpers `clean()`, `format()` and `equals()` stay permissive and still strip leading zeros (so `equals('012345678-5', '12345678-5')` is still `true`). Input is capped at 64 characters as a security bound (not a format rule), and errors are a generic `Invalid RUT input` so Chilean ID values are never echoed into logs or traces. `clean()` and `decompose()` remain intentionally permissive for normalization and must not be treated as validation. Review the CHANGELOG before upgrading.
+As of **v4.0.0** (a breaking release focused on production identity hardening), `validate()` and `isRutLike()` accept only three canonical shapes — compact (`123456785`), compact + hyphen (`12345678-5`), and canonical dotted (`12.345.678-5`), with optional surrounding whitespace. The dotted shape requires its verifier hyphen: `12.345.6785` (dots but no hyphen) is rejected, as is any non-canonical dot grouping that 3.x tolerated (`12.345678-5`, `12345.678-5`). As of **v5.0.0** — the final-shape major, after which the API contract is frozen — leading-zero padding is also rejected by the acceptance predicates `validate()`/`isValidRut()`/`isRutLike()`: a canonical RUT carries no leading zeros, so `012.345.678-5` and `0012345678` are non-canonical and return `false`. For zero-padded/dirty input use `parse()`: it normalizes like `clean()` (leading zeros, odd grouping, embedded garbage) and then requires a valid Modulo 11 verifier, returning `{ success: true, rut, body, verifier, formatted }` or `{ success: false, error }` without ever throwing (options: `canonicalOnly` applies validate's shape contract, `strict` rejects placeholders). Also as of v5.0.0, `equals()` checks validity by default — `equals('12345678-9', '12345678-9')` is now `false` (wrong verifier: not a RUT); pass `{ requireValid: false }` for the pre-5.0.0 pure shape comparison. Validity is checked on the *normalized* value, so `equals('012345678-5', '12345678-5')` is still `true` even though `validate('012345678-5')` is `false` — an intended asymmetry. The deprecated `getInvalidRutError()` was removed (catch `InvalidRutError` / check `err.code === 'INVALID_RUT'`). Input is capped at 64 characters as a security bound (not a format rule), and errors are a generic `Invalid RUT input` so Chilean ID values are never echoed into logs or traces — including the `error` in `parse()`'s failure branch. `clean()` and `decompose()` remain intentionally permissive for normalization (`clean('RUT: 12.345.678-5')` → `'123456785'`; it strips every non-`[0-9kK]` character wherever it sits) and must not be treated as validation. Review the CHANGELOG before upgrading.
 
 Key technical details:
-- **Size**: ~3.96KB minified, ~1.66KB gzipped (ESM build; ES2020 target)
+- **Size**: ~5.24KB minified, ~2.04KB gzipped (ESM build; ES2020 target; measured from the 5.0.0 build)
 - **Zero dependencies**: Pure TypeScript implementation
-- **Safe mode**: All throwing functions support `{ throwOnError: false }` to return `null` instead of throwing
-- **Strict validation**: `validate(rut, { strict: true })` additionally rejects repeated-digit placeholder RUTs (e.g. `11.111.111-1`)
-- **Secure generation**: `generate()` uses Web Crypto (`crypto.getRandomValues`) with unbiased rejection sampling, falling back to `Math.random()` on older runtimes
+- **Safe mode**: `parse()` never throws (discriminated union); the lower-level throwing helpers support `{ throwOnError: false }` to return `null` instead (defaults frozen until a hypothetical v6)
+- **Strict validation**: `validate(rut, { strict: true })` and `parse(rut, { strict: true })` additionally reject repeated-digit placeholder RUTs (e.g. `11.111.111-1`)
+- **Secure generation**: `generate()` uses Web Crypto (`crypto.getRandomValues`, guaranteed on Node >= 18) with unbiased rejection sampling; a `Math.random()` fallback is retained only as a safety net for exotic runtimes without Web Crypto
 - **Dual package**: Native ESM with CommonJS fallback
-- **Type definitions**: Full TypeScript support with exported types
+- **Type definitions**: Full TypeScript support with exported types (including `ParseOptions`, `ParseResult`, `EqualsOptions`)
 
 ## Getting Started
 
@@ -24,6 +24,7 @@ Key technical details:
 
 ## Core API Functions
 
+- [parse()](https://github.com/arrowsw/rut.ts/blob/canary/README.md): Never-throwing entry point for data ingestion — normalizes dirty/legacy input (zero padding, odd grouping, garbage), requires a valid verifier, and returns a discriminated union with the branded `Rut` and its canonical dotted `formatted` (options: `canonicalOnly`, `strict`)
 - [validate()](https://rut.arrowsw.com/docs/features/validate): Validate RUT format and verifier digit with optional strict mode to detect suspicious patterns
 - [format()](https://rut.arrowsw.com/docs/features/format): Format RUTs with dots and hyphens, supports incremental mode for real-time input
 - [clean()](https://rut.arrowsw.com/docs/features/clean): Remove formatting, special characters, and leading zeros from RUT strings
@@ -35,7 +36,7 @@ Key technical details:
 - [isRutLike()](https://rut.arrowsw.com/docs/features/is-rut-like): Check if a string matches RUT format without full validation
 - [isValidRut()](https://github.com/arrowsw/rut.ts/blob/canary/README.md): Type guard that narrows a value to the branded `Rut` type when valid (supports strict mode)
 - [mask()](https://github.com/arrowsw/rut.ts/blob/canary/README.md): Mask a RUT for safe logging/display, keeping only the leading group and verifier (`12.345.678-5` → `12.***.***-5`)
-- [equals()](https://github.com/arrowsw/rut.ts/blob/canary/README.md): Compare two RUTs for equality after normalization, so different shapes of the same RUT match
+- [equals()](https://github.com/arrowsw/rut.ts/blob/canary/README.md): Answer "same RUT?" across shapes — normalizes both arguments and, by default, requires the shared value to pass Modulo 11 (`{ requireValid: false }` restores the pure shape comparison)
 - [InvalidRutError](https://github.com/arrowsw/rut.ts/blob/canary/README.md): Typed error (class with `code: 'INVALID_RUT'`) thrown by the safe helpers; catch it instead of matching the message text
 
 ## Practical Examples
@@ -53,7 +54,7 @@ Key technical details:
 
 ## Optional
 
-- [Testing Guide](https://rut.arrowsw.com/docs/testing): Information about the test suite with 496 tests (including property-based tests via fast-check) covering all edge cases, plus a seeded differential harness against v3.4.0 and periodic Stryker mutation testing (~90% on the hot path)
+- [Testing Guide](https://rut.arrowsw.com/docs/testing): Information about the test suite with 565 tests (including property-based coherence laws via fast-check and type-level tests via expect-type) covering all edge cases, plus a seeded differential harness against frozen v3.4.0 and v4.1.0 baselines (validate + equals) and periodic Stryker mutation testing (~90% on the hot path)
 - [Contributing Guide](https://rut.arrowsw.com/docs/contributing): How to contribute to the project, development setup, and coding standards
 - [GitHub Issues](https://github.com/arrowsw/rut.ts/issues): Report bugs, request features, or ask questions
 - [Package Size Analysis](https://pkg-size.dev/rut.ts): Detailed breakdown of package size and bundle analysis
