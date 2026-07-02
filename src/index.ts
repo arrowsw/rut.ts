@@ -50,13 +50,6 @@ export class InvalidRutError extends Error {
   }
 }
 
-/**
- * @deprecated Since 4.1.0. Prefer catching {@link InvalidRutError}
- * (`err instanceof InvalidRutError` or `err.code === 'INVALID_RUT'`). Retained
- * for v3 compatibility; always returns the constant generic message.
- */
-export const getInvalidRutError = (_rut?: unknown): string => INVALID_RUT_MESSAGE
-
 /** Helper to create SafeOptions with explicit throwOnError boolean */
 const withThrowOption = (throwOnError?: boolean): { throwOnError: boolean } => ({
   throwOnError: throwOnError ?? true,
@@ -255,6 +248,11 @@ const randomIntInclusive = (min: number, max: number): number => {
 /**
  * Cleans the input string by removing leading zeros, non-numeric characters, and ensures the RUT is uppercased.
  * This is a permissive normalization helper and does not validate the verifier digit.
+ *
+ * Note that *every* character outside `[0-9kK]` is stripped, wherever it sits —
+ * including embedded text: `clean('RUT: 12.345.678-5')` → `'123456785'`. That is
+ * by design for its paste-normalizer role; if you need the input to already be
+ * a well-formed RUT, gate it with `validate()` / `parse()` instead.
  * @param {string} rut - The RUT string to clean.
  * @param {SafeOptions} [options] - Configuration options.
  * @param {boolean} [options.throwOnError=true] - If true (default), throws an error for invalid RUTs. If false, returns null.
@@ -469,7 +467,10 @@ const generateOne = (bodyLength: 7 | 8, outputFormat: GenerateFormat): string =>
 
 /**
  * Generates random valid RUT string(s).
- * Uses Web Crypto when available, and falls back to Math.random in older runtimes.
+ * Randomness comes from Web Crypto (`globalThis.crypto`), guaranteed on every
+ * supported runtime (Node >= 18 and all modern browsers). A `Math.random`
+ * fallback is retained purely as a safety net for exotic embedded runtimes
+ * without Web Crypto — generated RUTs are test fixtures, not secrets.
  * @param {GenerateOptions} [options] - Generation options.
  * @param {7 | 8} [options.bodyLength=8] - Number of body digits to generate.
  * @param {'dotted' | 'compact' | 'hyphen'} [options.format='dotted'] - Output shape:

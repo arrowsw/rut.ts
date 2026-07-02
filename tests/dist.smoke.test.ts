@@ -32,6 +32,7 @@ const cjsPkgJson = join(distRoot, 'cjs', 'package.json')
 
 const EXPECTED_NAMES = [
   'validate',
+  'parse',
   'clean',
   'format',
   'calculateVerifier',
@@ -40,7 +41,6 @@ const EXPECTED_NAMES = [
   'decompose',
   'generate',
   'isRutLike',
-  'getInvalidRutError',
   'isValidRut',
   'mask',
   'equals',
@@ -61,7 +61,8 @@ guarded('dist smoke (dual ESM + CJS package)', () => {
     }
     expect((cjs.validate as (s: string) => boolean)('12.345.678-5')).toBe(true)
     expect((cjs.format as (s: string) => string)('123456785')).toBe('12.345.678-5')
-    expect((cjs.getInvalidRutError as () => string)()).toBe('Invalid RUT input')
+    const parsed = (cjs.parse as (s: string) => { success: boolean; formatted?: string })('0012345674')
+    expect(parsed).toMatchObject({ success: true, formatted: '1.234.567-4' })
   })
 
   test('CJS subpackage is marked { "type": "commonjs" } (afterbuild step)', () => {

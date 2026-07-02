@@ -8,7 +8,6 @@ import {
   format,
   generate,
   getBody,
-  getInvalidRutError,
   getVerifier,
   InvalidRutError,
   isRutLike,
@@ -143,11 +142,6 @@ const _typecheck = () => {
   expectTypeOf(new InvalidRutError()).toExtend<Error>()
   expectTypeOf(new InvalidRutError().code).toEqualTypeOf<'INVALID_RUT'>()
   expectTypeOf(new InvalidRutError().message).toEqualTypeOf<string>()
-
-  // ── getInvalidRutError (accepts unknown, returns the constant string) ──
-  expectTypeOf(getInvalidRutError()).toEqualTypeOf<string>()
-  expectTypeOf(getInvalidRutError('x')).toEqualTypeOf<string>()
-  expectTypeOf(getInvalidRutError({ pii: 'x' } as unknown)).toEqualTypeOf<string>()
 
   // ── exported option types stay object-shaped ───────────────────────────
   expectTypeOf<FormatOptions>().toMatchObjectType<{
