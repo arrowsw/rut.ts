@@ -1,14 +1,4 @@
-import {
-  InvalidRutError,
-  getInvalidRutError,
-  clean,
-  format,
-  getBody,
-  getVerifier,
-  decompose,
-  calculateVerifier,
-  mask,
-} from '../src'
+import { InvalidRutError, clean, format, getBody, getVerifier, decompose, calculateVerifier, mask } from '../src'
 
 describe('InvalidRutError', () => {
   describe('shape', () => {
@@ -55,13 +45,6 @@ describe('InvalidRutError', () => {
         expect((err as Error).message).toBe('Invalid RUT input')
         expect((err as Error).message).not.toMatch(/not-a-rut|12345678/)
       }
-    })
-  })
-
-  describe('getInvalidRutError (deprecated, retained for v3 compatibility)', () => {
-    test('still returns the same generic message as the error', () => {
-      expect(getInvalidRutError()).toBe('Invalid RUT input')
-      expect(getInvalidRutError()).toBe(new InvalidRutError().message)
     })
   })
 })

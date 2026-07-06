@@ -8,7 +8,6 @@ import {
   format,
   generate,
   getBody,
-  getInvalidRutError,
   getVerifier,
   InvalidRutError,
   isRutLike,
@@ -16,7 +15,15 @@ import {
   mask,
   validate,
 } from '../src'
-import type { DecomposedRut, FormatOptions, Rut, SafeOptions, ValidateOptions, VerifierDigit } from '../src'
+import type {
+  DecomposedRut,
+  EqualsOptions,
+  FormatOptions,
+  Rut,
+  SafeOptions,
+  ValidateOptions,
+  VerifierDigit,
+} from '../src'
 
 /**
  * Type-level regression tests for the v4 overload contract.
@@ -103,19 +110,16 @@ const _typecheck = () => {
   expectTypeOf(mask('x', { throwOnError: false })).toEqualTypeOf<string | null>()
   expectTypeOf(mask('x', { throwOnError: true })).toEqualTypeOf<string>()
 
-  // ── equals (predicate over unknown) ────────────────────────────────────
+  // ── equals (predicate over unknown, with options) ──────────────────────
   expectTypeOf(equals('a', 'b')).toEqualTypeOf<boolean>()
   expectTypeOf(equals(1 as unknown, 2 as unknown)).toEqualTypeOf<boolean>()
+  expectTypeOf(equals('a', 'b', { requireValid: false })).toEqualTypeOf<boolean>()
+  expectTypeOf<EqualsOptions>().toMatchObjectType<{ requireValid?: boolean }>()
 
   // ── InvalidRutError (typed Error subclass with a literal code) ─────────
   expectTypeOf(new InvalidRutError()).toExtend<Error>()
   expectTypeOf(new InvalidRutError().code).toEqualTypeOf<'INVALID_RUT'>()
   expectTypeOf(new InvalidRutError().message).toEqualTypeOf<string>()
-
-  // ── getInvalidRutError (accepts unknown, returns the constant string) ──
-  expectTypeOf(getInvalidRutError()).toEqualTypeOf<string>()
-  expectTypeOf(getInvalidRutError('x')).toEqualTypeOf<string>()
-  expectTypeOf(getInvalidRutError({ pii: 'x' } as unknown)).toEqualTypeOf<string>()
 
   // ── exported option types stay object-shaped ───────────────────────────
   expectTypeOf<FormatOptions>().toMatchObjectType<{

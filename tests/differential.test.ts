@@ -1,10 +1,18 @@
 /**
- * Differential harness: v3.4.0 `validate()` vs the current `validate()`.
+ * Differential harness: frozen baselines vs the current src.
  *
- * Goal: characterize EXACTLY which input shapes change their validation result
- * between the last 3.x release and the current src, so a large production
- * dataset can be assessed for impact before upgrading. (The frozen baseline is
- * 3.4.0 — the last release a typical dataset predates — not the previous minor.)
+ * Two frozen baselines are compared against the current implementation:
+ *
+ *  - **v3.4.0 `validate()`** — the last 3.x release, for datasets that predate
+ *    the 4.x hardening.
+ *  - **v4.1.0 `validate()` + `equals()`** — the release real upgraders of the
+ *    5.0.0 major come from. Its regression list is the one that matters most:
+ *    leading-zero rejection in the acceptance predicates, and the new
+ *    validity-checking `equals` default.
+ *
+ * Goal: characterize EXACTLY which input shapes change their result between a
+ * frozen release and the current src, so a large production dataset can be
+ * assessed for impact before upgrading.
  *
  * This is intentionally a single self-contained file: the project's jest
  * `testRegex` matches every `*.ts` under `tests/`, so sibling helper modules
@@ -23,7 +31,7 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { validate as validateV4 } from '../src/index'
+import { equals as equalsCurrent, validate as validateCurrent } from '../src/index'
 
 /* ────────────────────────────────────────────────────────────────────────────
  * FROZEN SNAPSHOT — rut.ts v3.4.0 `validate()` and its dependencies.
@@ -76,6 +84,125 @@ const legacyValidate = (rut: unknown, options?: { strict?: boolean }): boolean =
 }
 /* ──────────────────────────── end frozen snapshot ─────────────────────────── */
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * FROZEN SNAPSHOT — rut.ts v4.1.0 `validate()` / `equals()` and dependencies.
+ * Copied verbatim (behavior-preserving) from the v4.1.0 tag's `src/index.ts`.
+ * DO NOT "improve" this code: its job is to reproduce 4.1.0 behavior exactly.
+ * Only the non-throwing paths `equals` relies on are frozen (`equals` calls
+ * `clean` with `{ throwOnError: false }`, so `fail()` reduces to `null`).
+ * ──────────────────────────────────────────────────────────────────────────── */
+const v41Patterns = {
+  compact: /^0*\d{7,8}[\dkK]$/,
+  compactWithHyphen: /^0*\d{7,8}-[\dkK]$/,
+  dotted: /^0*\d{1,3}\.\d{3}\.\d{3}-[\dkK]$/,
+  invalidRutChars: /[^0-9kK]+/g,
+  bodyDigits: /^\d+$/,
+}
+
+const V41_MIN_RUT_LENGTH = 8
+const V41_MAX_RUT_LENGTH = 9
+const V41_MIN_BODY_LENGTH = 7
+const V41_MAX_BODY_LENGTH = 8
+const V41_MAX_RUT_INPUT_LENGTH = 64
+
+const v41IsBoundedString = (input: unknown): input is string =>
+  typeof input === 'string' && input.length > 0 && input.length <= V41_MAX_RUT_INPUT_LENGTH
+
+const v41NormalizeRutValue = (rut: string): string =>
+  rut.replace(v41Patterns.invalidRutChars, '').replace(/^0+/, '').toUpperCase()
+
+const v41IsCleanRut = (rut: string): boolean => {
+  if (rut.length < V41_MIN_RUT_LENGTH || rut.length > V41_MAX_RUT_LENGTH) return false
+
+  const body = rut.slice(0, -1)
+  const verifier = rut.slice(-1)
+  return (
+    body.length >= V41_MIN_BODY_LENGTH &&
+    body.length <= V41_MAX_BODY_LENGTH &&
+    v41Patterns.bodyDigits.test(body) &&
+    /^[\dK]$/.test(verifier)
+  )
+}
+
+const v41ParseRutLike = (rut: unknown): { body: string; verifier: string } | null => {
+  if (!v41IsBoundedString(rut)) return null
+
+  const input = rut.trim()
+  if (input.length === 0) return null
+
+  const hasValidShape =
+    v41Patterns.compact.test(input) || v41Patterns.compactWithHyphen.test(input) || v41Patterns.dotted.test(input)
+  if (!hasValidShape) return null
+
+  const cleaned = v41NormalizeRutValue(input)
+  if (!v41IsCleanRut(cleaned)) return null
+
+  return {
+    body: cleaned.slice(0, -1),
+    verifier: cleaned.slice(-1),
+  }
+}
+
+const V41_VERIFIER_BY_CHECK_DIGIT: Record<number, string> = {
+  1: '1',
+  2: '2',
+  3: '3',
+  4: '4',
+  5: '5',
+  6: '6',
+  7: '7',
+  8: '8',
+  9: '9',
+  10: 'K',
+  11: '0',
+}
+
+const v41CalculateVerifierForBody = (rutBody: string): string => {
+  let sum = 0
+  let multiplier = 2
+
+  for (let index = rutBody.length - 1; index >= 0; index -= 1) {
+    sum += (rutBody.charCodeAt(index) - 48) * multiplier
+    multiplier = multiplier === 7 ? 2 : multiplier + 1
+  }
+
+  const checkDigit = 11 - (sum % 11)
+  return V41_VERIFIER_BY_CHECK_DIGIT[checkDigit]
+}
+
+const v41IsSuspicious = (body: string): boolean => {
+  const firstDigit = body[0]
+  for (let index = 1; index < body.length; index += 1) {
+    if (body[index] !== firstDigit) return false
+  }
+  return true
+}
+
+const v41Validate = (rut: unknown, options?: { strict?: boolean }): boolean => {
+  const decomposed = v41ParseRutLike(rut)
+  if (!decomposed) return false
+  if (options?.strict && v41IsSuspicious(decomposed.body)) return false
+
+  return v41CalculateVerifierForBody(decomposed.body) === decomposed.verifier
+}
+
+// v4.1.0 `clean` in its `{ throwOnError: false }` mode (the only one `equals` uses).
+const v41CleanOrNull = (rut: string): string | null => {
+  if (!v41IsBoundedString(rut)) return null
+
+  const cleanRut = v41NormalizeRutValue(rut)
+  if (!v41IsCleanRut(cleanRut)) return null
+
+  return cleanRut
+}
+
+const v41Equals = (a: unknown, b: unknown): boolean => {
+  if (typeof a !== 'string' || typeof b !== 'string') return false
+  const normalizedA = v41CleanOrNull(a)
+  return normalizedA !== null && normalizedA === v41CleanOrNull(b)
+}
+/* ──────────────────────────── end frozen snapshot ─────────────────────────── */
+
 /** Deterministic PRNG (mulberry32) so the corpus and report are reproducible. */
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0
@@ -116,23 +243,24 @@ function randomValidBody(): string {
 
 type Row = { input: string; shape: string }
 
+/** Group a valid 7/8-digit body from the right in 3s: '12345678' → '12.345.678'. */
+const dottedBody = (b: string): string => {
+  const head = b.length === 8 ? b.slice(0, 2) : b.slice(0, 1)
+  const rest = b.length === 8 ? b.slice(2) : b.slice(1)
+  return `${head}.${rest.slice(0, 3)}.${rest.slice(3)}`
+}
+
 /** Render a known-valid (body+dv) into one of many real-world shapes. */
 function renderShapes(body: string, dv: string): Row[] {
   const compact = `${body}${dv}`
-  const dotted = (b: string) => {
-    // group from the right in 3s
-    const head = b.length === 8 ? b.slice(0, 2) : b.slice(0, 1)
-    const rest = b.length === 8 ? b.slice(2) : b.slice(1)
-    return `${head}.${rest.slice(0, 3)}.${rest.slice(3)}`
-  }
   return [
     { input: compact, shape: 'compact' },
     { input: `${body}-${dv}`, shape: 'compact+hyphen' },
-    { input: `${dotted(body)}-${dv}`, shape: 'canonical-dotted' },
-    { input: `${dotted(body)}${dv}`, shape: 'dotted-no-hyphen' },
+    { input: `${dottedBody(body)}-${dv}`, shape: 'canonical-dotted' },
+    { input: `${dottedBody(body)}${dv}`, shape: 'dotted-no-hyphen' },
     { input: `${compact.slice(0, -1)}${dv.toLowerCase()}`, shape: 'lowercase-k' },
     { input: `00${compact}`, shape: 'leading-zeros' },
-    { input: `  ${dotted(body)}-${dv}  `, shape: 'surrounding-space' },
+    { input: `  ${dottedBody(body)}-${dv}  `, shape: 'surrounding-space' },
     // ----- non-canonical: this is the regression surface -----
     { input: `${body.slice(0, 2)}.${body.slice(2)}-${dv}`, shape: 'noncanonical-grouping' },
     { input: `${body.split('').join('.')}-${dv}`, shape: 'every-digit-dotted' },
@@ -216,14 +344,41 @@ function runDifferential(targetSize: number) {
   // the vulnerable legacy regex — only to the hardened v4 validator.
   const redosInput = '0'.repeat(100_000) + 'x'
   const redosStart = performance.now()
-  const redosV4Result = validateV4(redosInput)
+  const redosV4Result = validateCurrent(redosInput)
   const redosV4Ms = performance.now() - redosStart
+
+  // Equals pair corpus (4.1.0 ↔ current), ~5% of the validate corpus. Each row
+  // is a PAIR because equals is binary; shapes name the pair's relationship.
+  type PairRow = { a: string; b: string; shape: string }
+  const pairs: PairRow[] = []
+  const pairTarget = Math.max(600, Math.floor(targetSize * 0.05))
+  while (pairs.length < pairTarget) {
+    const body = randomValidBody()
+    const dv = dvOf(body)
+    const compact = `${body}${dv}`
+    const canonical = `${dottedBody(body)}-${dv}`
+    let bad = String(randInt(0, 9))
+    while (bad === dv) bad = randInt(0, 9) < 1 ? 'K' : String(randInt(0, 9))
+    const otherBody = randomValidBody()
+    pairs.push(
+      { a: canonical, b: compact, shape: 'pair-same-valid-cross-shape' },
+      { a: `00${compact}`, b: canonical, shape: 'pair-zero-padded-vs-canonical' },
+      { a: `${body}-${bad}`, b: `${body}-${bad}`, shape: 'pair-wrong-dv-identical' },
+      { a: `${body}${bad}`, b: `${body}-${bad}`, shape: 'pair-wrong-dv-cross-shape' },
+      { a: compact, b: `${otherBody}${dvOf(otherBody)}`, shape: 'pair-different-ruts' },
+      { a: 'not-a-rut', b: compact, shape: 'pair-garbage' },
+    )
+  }
 
   // ---- classify ----
   let agreeTrue = 0
   let agreeFalse = 0
   const regressions = new Map<string, { count: number; samples: string[] }>() // old=true, new=false
   const newAccepts = new Map<string, { count: number; samples: string[] }>() // old=false, new=true
+  let agreeTrue41 = 0
+  let agreeFalse41 = 0
+  const regressions41 = new Map<string, { count: number; samples: string[] }>()
+  const newAccepts41 = new Map<string, { count: number; samples: string[] }>()
 
   const bump = (m: Map<string, { count: number; samples: string[] }>, shape: string, input: string) => {
     const e = m.get(shape) ?? { count: 0, samples: [] }
@@ -233,25 +388,50 @@ function runDifferential(targetSize: number) {
   }
 
   for (const { input, shape } of rows) {
-    const o = legacyValidate(input)
-    const n = validateV4(input)
-    if (o && n) agreeTrue++
-    else if (!o && !n) agreeFalse++
-    else if (o && !n) bump(regressions, shape, input)
+    const n = validateCurrent(input)
+
+    const o3 = legacyValidate(input)
+    if (o3 && n) agreeTrue++
+    else if (!o3 && !n) agreeFalse++
+    else if (o3 && !n) bump(regressions, shape, input)
     else bump(newAccepts, shape, input)
+
+    const o41 = v41Validate(input)
+    if (o41 && n) agreeTrue41++
+    else if (!o41 && !n) agreeFalse41++
+    else if (o41 && !n) bump(regressions41, shape, input)
+    else bump(newAccepts41, shape, input)
+  }
+
+  // equals: default mode vs the 4.1.0 baseline, plus the { requireValid: false }
+  // parity guarantee (legacy mode must match 4.1.0 on EVERY pair, no exceptions).
+  let equalsAgree = 0
+  let legacyParityMismatch = 0
+  const equalsDiffs = new Map<string, { count: number; samples: string[] }>()
+  for (const { a, b, shape } of pairs) {
+    const o = v41Equals(a, b)
+    const n = equalsCurrent(a, b)
+    if (o === n) equalsAgree++
+    else bump(equalsDiffs, shape, `${a} ≟ ${b}`)
+    if (equalsCurrent(a, b, { requireValid: false }) !== o) legacyParityMismatch++
   }
 
   // Strict-mode security spot check (the uppercase-K bypass).
   const strictBypassOld = legacyValidate('8.888.888-K', { strict: true })
-  const strictBypassNew = validateV4('8.888.888-K', { strict: true })
+  const strictBypassNew = validateCurrent('8.888.888-K', { strict: true })
 
   // Non-string inputs (kept out of the string corpus).
   const nonStringRows = [null, undefined, 123456785, {}, [], NaN, true]
-  const nonStringDivergence = nonStringRows.filter((v) => legacyValidate(v as unknown) !== validateV4(v as unknown))
+  const nonStringDivergence = nonStringRows.filter(
+    (v) => legacyValidate(v as unknown) !== validateCurrent(v as unknown),
+  )
 
   const total = rows.length
   const regrTotal = [...regressions.values()].reduce((a, b) => a + b.count, 0)
   const accTotal = [...newAccepts.values()].reduce((a, b) => a + b.count, 0)
+  const regrTotal41 = [...regressions41.values()].reduce((a, b) => a + b.count, 0)
+  const accTotal41 = [...newAccepts41.values()].reduce((a, b) => a + b.count, 0)
+  const equalsDiffTotal = [...equalsDiffs.values()].reduce((a, b) => a + b.count, 0)
 
   const fmt = (m: Map<string, { count: number; samples: string[] }>) =>
     [...m.entries()]
@@ -259,26 +439,61 @@ function runDifferential(targetSize: number) {
       .map(([shape, e]) => `| \`${shape}\` | ${e.count} | ${e.samples.map((s) => `\`${s}\``).join(', ')} |`)
       .join('\n') || '| _(none)_ | 0 | |'
 
-  const report = `# Differential report — v3.4.0 vs current (5.0.0) \`validate()\`
+  const report = `# Differential report — frozen baselines vs current (5.0.0)
 
 - Seed: \`0x52555420\` (reproducible)
-- Corpus size: **${total.toLocaleString('en-US')}**
+- Corpus size: **${total.toLocaleString('en-US')}** validate inputs, **${pairs.length.toLocaleString('en-US')}** equals pairs
+
+## v3.4.0 → current — \`validate()\`
+
 - Agree valid (\`true/true\`): **${agreeTrue.toLocaleString('en-US')}**
 - Agree invalid (\`false/false\`): **${agreeFalse.toLocaleString('en-US')}**
 - ⚠️ Regressions (was \`true\` → now \`false\`): **${regrTotal.toLocaleString('en-US')}**
 - New acceptances (was \`false\` → now \`true\`): **${accTotal.toLocaleString('en-US')}**
 
-## ⚠️ Regressions by input shape (potential false negatives for a 3.x dataset)
+### ⚠️ Regressions by input shape (potential false negatives for a 3.x dataset)
 
 | Input shape | Count | Samples |
 |-------------|------:|---------|
 ${fmt(regressions)}
 
-## New acceptances by input shape
+### New acceptances by input shape
 
 | Input shape | Count | Samples |
 |-------------|------:|---------|
 ${fmt(newAccepts)}
+
+## v4.1.0 → current — \`validate()\` (the migration most upgraders make)
+
+- Agree valid (\`true/true\`): **${agreeTrue41.toLocaleString('en-US')}**
+- Agree invalid (\`false/false\`): **${agreeFalse41.toLocaleString('en-US')}**
+- ⚠️ Regressions (was \`true\` → now \`false\`): **${regrTotal41.toLocaleString('en-US')}**
+- New acceptances (was \`false\` → now \`true\`): **${accTotal41.toLocaleString('en-US')}** (must be 0)
+
+### ⚠️ Regressions by input shape (potential false negatives for a 4.x dataset)
+
+| Input shape | Count | Samples |
+|-------------|------:|---------|
+${fmt(regressions41)}
+
+Both shapes are the same documented 5.0.0 change: leading-zero padding is no
+longer accepted by the predicates. Ingest legacy data through the documented
+recipe — \`const rut = clean(raw, { throwOnError: false })\` and then
+\`validate(rut)\` — which normalizes first and never accepts a wrong verifier.
+
+## v4.1.0 → current — \`equals()\` default mode
+
+- Pairs compared: **${pairs.length.toLocaleString('en-US')}** — agree: **${equalsAgree.toLocaleString('en-US')}**
+- ⚠️ Divergences (4.1.0 and current disagree): **${equalsDiffTotal.toLocaleString('en-US')}**
+
+| Pair shape | Count | Samples |
+|------------|------:|---------|
+${fmt(equalsDiffs)}
+
+Every divergence is the documented 5.0.0 \`equals\` change: the default now
+requires a valid Modulo 11 verifier, so wrong-DV pairs stop comparing equal.
+Legacy parity: \`equals(a, b, { requireValid: false })\` matched v4.1.0 on
+**${(pairs.length - legacyParityMismatch).toLocaleString('en-US')} / ${pairs.length.toLocaleString('en-US')}** pairs (must be all).
 
 ## Security spot checks
 
@@ -312,6 +527,13 @@ enumerates exactly what changed.
     redosV4Ms,
     regressionShapes: [...regressions.keys()],
     newAcceptShapes: [...newAccepts.keys()],
+    regrTotal41,
+    regressionShapes41: [...regressions41.keys()],
+    newAcceptShapes41: [...newAccepts41.keys()],
+    equalsPairTotal: pairs.length,
+    equalsAgree,
+    equalsDiffShapes: [...equalsDiffs.keys()],
+    legacyParityMismatch,
   }
 }
 
@@ -361,6 +583,24 @@ const CORPUS = Number(process.env.DIFF_CORPUS ?? 1_000_000)
     expect(unexpected).toEqual([])
   })
 
+  test('4.1.0 → current: validate regressions are exactly the documented leading-zero shapes', () => {
+    // The ONLY 5.0.0 predicate change is leading-zero rejection; both allowed
+    // shapes are zero-padded renderings of otherwise-valid RUTs. Anything else
+    // here is an undocumented regression for 4.x upgraders.
+    const allowed = new Set(['leading-zeros', 'len-64-padded-valid'])
+    expect(result.regressionShapes41.filter((s) => !allowed.has(s))).toEqual([])
+    expect(result.newAcceptShapes41).toEqual([]) // 5.0.0 accepts nothing 4.1.0 rejected
+  })
+
+  test('4.1.0 → current: equals only diverges on wrong-DV pairs (the requireValid default)', () => {
+    const allowed = new Set(['pair-wrong-dv-identical', 'pair-wrong-dv-cross-shape'])
+    expect(result.equalsDiffShapes.filter((s) => !allowed.has(s))).toEqual([])
+  })
+
+  test('4.1.0 → current: { requireValid: false } is 4.1.0-compatible on every pair', () => {
+    expect(result.legacyParityMismatch).toBe(0)
+  })
+
   test('strict uppercase-K bypass is fixed', () => {
     expect(result.strictBypassOld).toBe(true) // the 3.x bug
     expect(result.strictBypassNew).toBe(false) // fixed in 4.0.0
@@ -380,8 +620,26 @@ const CORPUS = Number(process.env.DIFF_CORPUS ?? 1_000_000)
 ;(FULL ? describe.skip : describe)('differential (smoke)', () => {
   test('legacy snapshot and v4 disagree exactly on a known non-canonical shape', () => {
     expect(legacyValidate('12.345678-5')).toBe(true)
-    expect(validateV4('12.345678-5')).toBe(false)
-    expect(legacyValidate('12.345.678-5')).toBe(validateV4('12.345.678-5'))
+    expect(validateCurrent('12.345678-5')).toBe(false)
+    expect(legacyValidate('12.345.678-5')).toBe(validateCurrent('12.345.678-5'))
+  })
+
+  test('4.1.0 snapshot: leading-zero predicates and the equals default are the only divergences', () => {
+    // validate: the zero-padded family flips from accept to reject…
+    expect(v41Validate('0012345674')).toBe(true)
+    expect(validateCurrent('0012345674')).toBe(false)
+    // …while canonical shapes agree.
+    expect(v41Validate('12.345.678-5')).toBe(validateCurrent('12.345.678-5'))
+    expect(v41Validate('12345678-9')).toBe(validateCurrent('12345678-9'))
+
+    // equals: a wrong-DV pair flips under the validity-checking default…
+    expect(v41Equals('12345678-9', '12345678-9')).toBe(true)
+    expect(equalsCurrent('12345678-9', '12345678-9')).toBe(false)
+    // …legacy mode restores 4.1.0 behavior exactly…
+    expect(equalsCurrent('12345678-9', '12345678-9', { requireValid: false })).toBe(true)
+    // …and zero-padded-vs-canonical stays equal in BOTH versions (coherence rule).
+    expect(v41Equals('012345678-5', '12.345.678-5')).toBe(true)
+    expect(equalsCurrent('012345678-5', '12.345.678-5')).toBe(true)
   })
 
   /**
@@ -412,9 +670,7 @@ const CORPUS = Number(process.env.DIFF_CORPUS ?? 1_000_000)
       } while (/^(.)\1*$/.test(body))
       const dv = dvOf(body)
 
-      const head = body.length === 8 ? body.slice(0, 2) : body.slice(0, 1)
-      const rest = body.length === 8 ? body.slice(2) : body.slice(1)
-      const dotted = `${head}.${rest.slice(0, 3)}.${rest.slice(3)}`
+      const dotted = dottedBody(body)
 
       const rows: Array<{ input: string; shape: string }> = [
         { input: `${body}${dv}`, shape: 'compact' },
@@ -426,7 +682,7 @@ const CORPUS = Number(process.env.DIFF_CORPUS ?? 1_000_000)
       ]
       for (const { input, shape } of rows) {
         const o = legacyValidate(input)
-        const n = validateV4(input)
+        const n = validateCurrent(input)
         if (o && !n) regressionShapes.add(shape)
         else if (!o && n) newAcceptShapes.add(shape)
       }
@@ -436,7 +692,7 @@ const CORPUS = Number(process.env.DIFF_CORPUS ?? 1_000_000)
     {
       const overCap = '0'.repeat(56) + '123456785'
       const o = legacyValidate(overCap)
-      const n = validateV4(overCap)
+      const n = validateCurrent(overCap)
       if (o && !n) regressionShapes.add('len-65-over-cap')
     }
 
@@ -452,7 +708,7 @@ const CORPUS = Number(process.env.DIFF_CORPUS ?? 1_000_000)
     // v4 validator.
     const adversarial = '0'.repeat(100_000) + 'x'
     const start = performance.now()
-    const result = validateV4(adversarial)
+    const result = validateCurrent(adversarial)
     const elapsed = performance.now() - start
     expect(result).toBe(false)
     expect(elapsed).toBeLessThan(50)
@@ -460,6 +716,6 @@ const CORPUS = Number(process.env.DIFF_CORPUS ?? 1_000_000)
 
   test('strict uppercase-K bypass remains fixed', () => {
     expect(legacyValidate('8.888.888-K', { strict: true })).toBe(true) // documented v3 bug
-    expect(validateV4('8.888.888-K', { strict: true })).toBe(false) // v4 fix
+    expect(validateCurrent('8.888.888-K', { strict: true })).toBe(false) // v4 fix
   })
 })

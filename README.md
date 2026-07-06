@@ -18,7 +18,7 @@ correctness contract you can rely on in production.
 - 🪶 **Tiny & zero-dependency** — tree-shakeable ESM, ships only what you import.
 - 🔒 **Hardened by default** — bounded parsing, strict mode, generic errors. No ID values leak into logs or traces.
 - 🧠 **Fully typed** — first-class TypeScript types, no `@types` package needed.
-- 🌐 **Universal** — runs in Node, the browser, Deno and Bun. Uses Web Crypto when available.
+- 🌐 **Universal** — runs in Node (>= 20), the browser, Deno and Bun.
 - ✅ **Battle-tested** — a differential harness guards every release against regressions.
 
 ## Installation
@@ -33,7 +33,7 @@ npm install rut.ts
 ```typescript
 import { validate, format, clean, decompose, isRutLike } from 'rut.ts'
 
-// Validate — strict mode also rejects suspicious placeholder RUTs
+// Validate — the strict canonical gate; strict mode also rejects placeholders
 validate('12.345.678-5') // true
 validate('12.345.678-0') // false (wrong verifier)
 validate('11.111.111-1', { strict: true }) // false (suspicious)
@@ -80,7 +80,9 @@ try {
 
 // Mask for safe logging, and compare across shapes
 mask('12.345.678-5') // '12.***.***-5'
-equals('12.345.678-5', '123456785') // true
+equals('12.345.678-5', '123456785') // true  (same valid RUT, different shapes)
+equals('12345678-9', '12345678-9') // false (wrong verifier — not a RUT at all)
+equals('12345678-9', '12345678-9', { requireValid: false }) // true (4.x-style shape comparison)
 
 // Generation options
 generate() // '29.561.896-5'  (8-digit dotted, default)
@@ -99,10 +101,10 @@ generate({ count: 3 }) // ['…', '…', '…']
 - **Formatting** — standardized output, with or without dots.
 - **Incremental formatting** — progressive formatting as the user types, ideal for form inputs.
 - **Masking** — `mask()` produces `12.***.***-5` for safe logging/display.
-- **Comparison** — `equals()` compares RUTs across different shapes.
+- **Comparison** — `equals()` answers "same RUT?" across different shapes, checking validity by default (`{ requireValid: false }` for pure shape comparison).
 - **Cleaning** — permissively strip extraneous characters and leading zeros.
 - **Decomposition** — split a RUT into its body and verifier digit.
-- **Generation** — cryptographically-backed random valid RUTs, with `bodyLength`, `format` and `count` options (Web Crypto when available).
+- **Generation** — cryptographically-backed random valid RUTs, with `bodyLength`, `format` and `count` options.
 - **Calculate verifier** — compute the verifier digit for a given body.
 - **Format detection** — cheap `isRutLike` check without full validation.
 - **Safe mode** — every safe function supports `throwOnError: false` to return `null` instead of throwing.
@@ -158,19 +160,62 @@ any input longer than 64 chars.
 > **Zero-padded data?** Leading zeros are rejected by `validate()` /
 > `isValidRut()` / `isRutLike()`, but `clean()`, `format()` and `equals()` stay
 > permissive and still strip them. If you ingest fixed-width/zero-padded values,
-> pipe them through `clean()` first and then `validate()` the result.
+> use the two-line recipe below — normalize first, then validate.
 
 > The 64-char limit is a **security bound, not a format rule**. A real RUT is
 > ~9 significant characters, so the cap never rejects a realistic RUT — it just
 > refuses to _process_ implausibly long strings, neutralizing CPU/ReDoS-style
 > abuse before any parsing runs.
 
-> 💡 **Migrating a dataset?** If your upstream emits RUTs in a non-canonical
-> shape, normalize to one of the three accepted forms before calling
-> `validate()`, or sanity-check a representative sample with
-> `npm run test:differential` (writes `tests/differential-report.md`).
+> 💡 **Migrating a dataset?** Use the recipe below, or sanity-check a
+> representative sample with `npm run test:differential` (writes
+> `tests/differential-report.md`, including a dedicated 4.1.0 → 5.0.0 section).
 > `clean()` / `decompose()` stay permissive — never treat their output as
 > "validated".
+
+## Ingesting dirty or legacy input
+
+Legacy exports, mainframe fixed-width files, and copy-pasted values rarely
+arrive canonical. The blessed path is two lines — **normalize first, then
+validate the normalized value**:
+
+```typescript
+import { clean, validate } from 'rut.ts'
+
+const rut = clean(raw, { throwOnError: false }) // strips zeros, dots, garbage → '12345674' | null
+if (rut !== null && validate(rut)) {
+  store(rut) // canonical compact form, Modulo 11 verified — safe for UNIQUE keys
+}
+```
+
+Two things make this recipe safe: `clean()` collapses the unbounded zero-padded
+family into one canonical string (so a `UNIQUE` constraint can't be bypassed by
+padding), and `validate()` then proves the verifier. Never store `clean()`'s
+output *without* the `validate()` step — `clean` does not check the Modulo 11
+digit.
+
+`validate()` deliberately has **no** relaxation flags: it stays a binary
+canonical gate. When input might be messy, normalize it first — don't reach for
+a looser validator.
+
+## `equals()` vs `validate()` — which one?
+
+| Question you're asking | Use |
+| --- | --- |
+| "Are these the same RUT?" (shape-agnostic, zero-padding tolerated) | `equals()` |
+| "Is this string written as a valid canonical RUT?" (identity/uniqueness gate) | `validate()` / `isValidRut()` |
+
+By default `equals` also checks validity — two strings with a wrong verifier
+are *not* "the same RUT" because they are not RUTs
+(`equals('12345678-9', '12345678-9')` → `false`). Pass
+`{ requireValid: false }` for the pure shape comparison (useful when
+deduplicating dirty datasets, where the same typo twice is still one entity).
+
+**Intended asymmetry:** `equals('012345678-5', '12.345.678-5')` → `true` while
+`validate('012345678-5')` → `false`. `equals` is a normalization operation — it
+inherits `clean()`'s permissiveness (leading zeros, separators, case) and adds
+only the verifier check. Requiring canonical shape would make it useless for
+the very thing it exists for: comparing different shapes of the same RUT.
 
 ## Incremental formatting
 
@@ -193,6 +238,7 @@ the input is complete — always `validate()` the final value.
 ```typescript
 import type {
   DecomposedRut,
+  EqualsOptions,
   FormatOptions,
   GenerateOptions,
   Rut,
@@ -205,17 +251,21 @@ import type {
 // DecomposedRut:  { body: string; verifier: VerifierDigit }
 // FormatOptions:  { incremental?: boolean; dots?: boolean; throwOnError?: boolean }
 // ValidateOptions:{ strict?: boolean }
+// EqualsOptions:  { requireValid?: boolean }
 // SafeOptions:    { throwOnError?: boolean }
 // GenerateOptions:{ bodyLength?: 7 | 8; format?: 'dotted' | 'compact' | 'hyphen'; count?: number }
 // Rut:            string & { /* brand */ }  — a validated RUT (from isValidRut)
 ```
 
-## Upgrading from v3
+## Upgrading
 
-`v4` hardens validation for production identity flows and tightens the accepted
-input contract (see the table above). If you're coming from `3.x`, the
-[**CHANGELOG**](./CHANGELOG.md) lists every change and how to migrate — most
-codebases only need to normalize input shape before `validate()`.
+`5.0.0` is the **final-shape** release: the `validate()` contract is frozen, and
+no further breaking changes are planned. Coming from `4.x`, the two behavior
+changes are leading-zero rejection in the predicates and the validity-checking
+`equals` default — the [**CHANGELOG**](./CHANGELOG.md) has a before/after table
+and migration notes for both (in short: ingest dirty data with the
+`clean()`-then-`validate()` recipe above, and pass `{ requireValid: false }` to
+`equals` for the old comparison).
 
 ## Contributing
 

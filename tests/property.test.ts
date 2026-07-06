@@ -130,6 +130,80 @@ describe('property: equals / mask', () => {
   })
 })
 
+// Mixed-input arbitrary for the 5.0.0 equals laws: plain fuzz strings would
+// make the implications vacuously true almost always, so valid RUTs,
+// zero-padded variants and wrong-DV strings are folded in to actually exercise
+// both sides.
+const zeroPadded = validRut.map((rut) => `00${clean(rut)}`)
+const wrongDv = validBody.map((body) => {
+  const good = calculateVerifier(body)
+  return `${body}-${good === '0' ? '1' : '0'}`
+})
+const anyInput = fc.oneof(fc.string(), validRut, zeroPadded, wrongDv)
+
+describe('property: the lenient-ingestion recipe (clean → validate)', () => {
+  // The documented blessed path for dirty/legacy input:
+  //   const rut = clean(raw, { throwOnError: false })
+  //   if (rut !== null && validate(rut)) accept(rut)
+  const recipe = (raw: string): string | null => {
+    const rut = clean(raw, { throwOnError: false })
+    return rut !== null && validate(rut) ? rut : null
+  }
+
+  test('the recipe accepts every zero-padded rendering of a valid RUT and returns the canonical compact', () => {
+    fc.assert(
+      fc.property(validRut, (rut) => {
+        const accepted = recipe(`00${clean(rut)}`)
+        return accepted !== null && accepted === clean(rut) && validate(accepted)
+      }),
+      RUNS,
+    )
+  })
+
+  test('the recipe never accepts a wrong-verifier value, however padded', () => {
+    fc.assert(
+      fc.property(wrongDv, (raw) => recipe(raw) === null && recipe(`000${raw}`) === null),
+      RUNS,
+    )
+  })
+
+  test('recipe acceptance coincides with default equals reflexivity', () => {
+    fc.assert(
+      fc.property(anyInput, (raw) => (recipe(raw) !== null) === equals(raw, raw)),
+      RUNS,
+    )
+  })
+})
+
+describe('property: equals laws (5.0.0 API coherence)', () => {
+  test("default reflexivity coincides with normalized validity: equals(a, a) === validate(clean(a, {throwOnError: false}) ?? '')", () => {
+    fc.assert(
+      fc.property(anyInput, (a) => equals(a, a) === validate(clean(a, { throwOnError: false }) ?? '')),
+      RUNS,
+    )
+  })
+
+  test('equals(clean(a), a) for every valid a', () => {
+    fc.assert(
+      fc.property(validRut, (a) => equals(clean(a), a)),
+      RUNS,
+    )
+  })
+
+  test('symmetry in both modes over arbitrary input', () => {
+    fc.assert(
+      fc.property(
+        anyInput,
+        anyInput,
+        (a, b) =>
+          equals(a, b) === equals(b, a) &&
+          equals(a, b, { requireValid: false }) === equals(b, a, { requireValid: false }),
+      ),
+      RUNS,
+    )
+  })
+})
+
 describe('property: safety on arbitrary input', () => {
   test('validate / isRutLike never throw and always return a boolean for any string', () => {
     fc.assert(

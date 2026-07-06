@@ -10,12 +10,23 @@ metadata**: they are accurate but summarized, not exhaustive.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [5.0.0] - 2026-06-26
+## [5.0.0] - Unreleased
 
-A **major, breaking** release that closes a canonicalization gap in the
-acceptance predicates: `validate()`, `isValidRut()` and `isRutLike()` now reject
-**leading-zero padding**. The Modulo 11 algorithm is **unchanged** — this only
-tightens which *input strings* count as a canonical RUT.
+The **final-shape** major. `5.0.0` closes the validation contract
+(leading-zero padding is rejected by the acceptance predicates), makes
+`equals()` answer the question its name asks (validity is now checked by
+default), and drops the v3-era dead weight. The Modulo 11 algorithm is
+**unchanged** throughout.
+
+### API stability commitment
+
+**This is the release after which the contract freezes.** After three majors in
+about a year, no further breaking changes are planned: the `validate()`
+acceptance contract (three canonical shapes, no leading zeros, 64-char cap) is
+final, and the `throwOnError: true` defaults of the safe helpers **will not
+change until a hypothetical v6** — which is not planned. Any new capability
+will arrive as an addition in a minor release, never as a mutation of existing
+behavior.
 
 ### Why
 
@@ -33,21 +44,50 @@ zeros and returned `true`; `5.0.0` refuses the input instead, and points you at
 
 **For most projects, no.** If you validate normally-formatted RUTs — compact
 (`123456785`), compact + hyphen (`12345678-5`) or canonical dotted
-(`12.345.678-5`) — nothing changes. You only need to act if you feed
-**zero-padded** values (e.g. fixed-width exports from legacy/mainframe systems)
-directly into `validate()` / `isValidRut()` / `isRutLike()`.
+(`12.345.678-5`) — and treat `equals()` as "same RUT?", nothing changes. You
+need to act only if:
+
+1. you feed **zero-padded** values (fixed-width exports from legacy/mainframe
+   systems) directly into `validate()` / `isValidRut()` / `isRutLike()`,
+2. you relied on `equals()` matching **invalid** RUT-shaped strings (dirty-data
+   dedup), or
+3. you still call the long-deprecated `getInvalidRutError()`, or run Node < 20.
 
 ### Upgrade notes
 
-- **Normalize before validating.** Pipe padded input through `clean()` first —
-  `validate(clean(raw, { throwOnError: false }) ?? '')` — or strip the zeros
-  upstream. `clean()`, `format()` and `equals()` are **unchanged** and still
-  normalize leading zeros, so `equals('012345678-5', '12345678-5')` stays `true`
-  and `format('0012345674')` stays `'1.234.567-4'`.
+- **Ingest dirty/legacy input with the two-line recipe — normalize first, then
+  validate the normalized value:**
+
+  ```ts
+  const rut = clean(raw, { throwOnError: false }) // '0012345674' → '12345674' | null
+  if (rut !== null && validate(rut)) db.save(rut) // canonical, Modulo 11 verified
+  ```
+
+  This is the blessed path for zero-padded fixed-width exports and other messy
+  sources: `clean()` collapses the unbounded zero-padded family into one
+  canonical string, and `validate()` then proves the verifier. Never store
+  `clean()`'s output without the `validate()` step — `clean` does not check the
+  Modulo 11 digit.
+
+  Deliberate **non-goal**: no `allowLeadingZeros`-style relaxation flag was (or
+  will be) added to `validate()` — every flag that relaxes the canonical
+  contract erodes exactly the guarantee it exists to give. `validate` stays a
+  binary, flag-free (except `strict`) identity gate; messy input gets
+  normalized *before* the gate, never waved through it.
+- **Dedup of dirty datasets:** pass `{ requireValid: false }` to `equals` to
+  keep the 4.x behavior (same typo in two rows → still the same entity).
+- **`getInvalidRutError()` callers:** catch `InvalidRutError` or check
+  `err.code === 'INVALID_RUT'` instead.
 - **Size the impact on a real dataset** with the differential harness:
   `npm run test:differential` writes `tests/differential-report.md`, which now
-  lists `leading-zeros` (and the zero-padded `len-64-padded-valid`) as expected
-  regression shapes.
+  carries a dedicated **4.1.0 → 5.0.0** section: the only `validate` regressions
+  are the zero-padded shapes, and the only `equals` divergences are wrong-DV
+  pairs.
+
+### Added
+
+- **`EqualsOptions`** exported type (`{ requireValid?: boolean }`) for the new
+  `equals` option described below.
 
 ### Changed (Breaking)
 
@@ -61,40 +101,97 @@ directly into `validate()` / `isValidRut()` / `isRutLike()`.
   (`01234567-4`) is absorbed by `\d{7,8}` and would otherwise be stripped during
   normalization, so the patterns alone could not close the gap.
 
+- **`equals()` now checks validity by default (`requireValid: true`).**
+  `equals` answers *"are these the same RUT?"* — and two strings that are not
+  RUTs cannot be the same RUT. By default both arguments must normalize to the
+  same value **and** that value must pass Modulo 11:
+
+  | Call | 4.1.0 | 5.0.0 | Why |
+  | ---- | ----- | ----- | --- |
+  | `equals('12345678-9', '12345678-9')` | `true` | **`false`** | wrong verifier — not a RUT |
+  | `equals('12.345.678-9', '123456789')` | `true` | **`false`** | same wrong-verifier value across shapes |
+  | `equals('012345678-5', '12.345.678-5')` | `true` | `true` | valid after normalization (see below) |
+  | `equals('12.345.678-5', '123456785')` | `true` | `true` | valid, same RUT |
+  | `equals(a, b, { requireValid: false })` | n/a | 4.1.0 behavior | pure normalization comparison |
+
+  **Coherence rule (intended asymmetry):** validity is checked against the
+  *normalized* value, not against `validate()`'s canonical shape contract —
+  `equals('012345678-5', '12.345.678-5')` stays `true` even though
+  `validate('012345678-5')` is `false`. `equals` is a normalization operation by
+  definition; `requireValid` adds exactly one thing (the verifier check), because
+  requiring canonical shape would make `equals` useless for the very thing it
+  exists for: comparing different shapes of the same RUT. This is not a bug.
+
+  `{ requireValid: false }` preserves the 4.x comparison byte-for-byte — the
+  legitimate use case is deduplicating dirty datasets, where the same typo in two
+  rows is still the same entity. The differential harness proves the parity on a
+  50k-pair corpus.
+
+- **Node.js >= 20 required (`engines`).** Node 14–18 are past end-of-life, and
+  20 is the first floor that guarantees `globalThis.crypto` (a default global
+  since Node 19) — it also matches the versions CI actually tests. The
+  `Math.random` fallback in `generate()` is retained purely as a safety net for
+  exotic embedded runtimes and its JSDoc now says so (generated RUTs are test
+  fixtures, not secrets).
+
+### Removed
+
+- **`getInvalidRutError()`** (deprecated since 4.1.0). It was a v3-era shim that
+  always returned the constant string `Invalid RUT input`. Migration: catch
+  `InvalidRutError` (`err instanceof InvalidRutError`) or branch on
+  `err.code === 'INVALID_RUT'`; the constant message is
+  `new InvalidRutError().message` if you truly need the text.
+
 ### Unchanged
 
 - **The lenient normalizers stay permissive.** `clean()`, `format()`,
-  `decompose()`, `getBody()`, `getVerifier()`, `mask()`, `calculateVerifier()`
-  and `equals()` continue to strip leading zeros — they are normalization /
-  recovery tools, not validation. The split is deliberate: `validate*` answers
-  "is this written as a canonical RUT?"; `clean` / `format` answer "recover a RUT
-  from messy input".
-- **`equals()` stays a normalization comparison (docs clarified).** It strips
-  leading zeros (and dots/hyphens/case) and compares, so a zero-padded value
-  still matches its canonical form — `equals('012345678-5', '12345678-5')` →
-  `true` — even though `validate()` now rejects the padded shape. The two answer
-  different questions ("same RUT?" vs "valid canonical input?"). Its JSDoc was
-  corrected: it previously implied it returned `false` for "structurally
-  invalid" input, but `equals` never checked the Modulo 11 verifier (and still
-  does not — `equals('12345678-9', '12345678-9')` is `true`). Use `validate()` /
-  `isValidRut()` for validity.
-- **Modulo 11, strict mode, the 64-char security cap, the generic
-  `Invalid RUT input` error, and bundle size are all untouched.**
+  `decompose()`, `getBody()`, `getVerifier()`, `mask()` and `calculateVerifier()`
+  continue to strip leading zeros — they are normalization / recovery tools, not
+  validation. The split is deliberate: `validate*` answers "is this written as a
+  canonical RUT?"; `clean` / `format` answer "recover a RUT from messy input";
+  the two compose into the ingestion recipe above. `clean()`'s docs now spell
+  out that it strips *every* non-`[0-9kK]` character wherever it sits —
+  `clean('RUT: 12.345.678-5')` → `'123456785'` — by design, for its
+  paste-normalizer role.
+- **`throwOnError` defaults are untouched.** The seven safe helpers
+  (`clean`, `format`, `decompose`, `getBody`, `getVerifier`, `calculateVerifier`,
+  `mask`) still throw `InvalidRutError` by default and still accept
+  `{ throwOnError: false }`. Flipping that default was evaluated and rejected:
+  TypeScript consumers would get self-discovering compile errors, but plain
+  JavaScript consumers would get a **silent** behavior change (`throw` → `null`)
+  that propagates noiselessly downstream — the worst class of breaking change.
+  These defaults will not change until a hypothetical v6.
+- **Modulo 11, strict mode, the 64-char security cap, and the generic
+  `Invalid RUT input` error are all untouched.**
 
 ### Internal
 
+- **The internal parser was restructured into a single typed core.** One typed
+  splitter is now shared by a lenient core (used by `clean` / `decompose` /
+  `getBody` / `getVerifier` / `mask` / `format`) and a canonical core (used by
+  `validate` / `isValidRut` / `isRutLike`). `decompose`'s unreachable defensive
+  re-narrowing branch — a long-standing surviving Stryker mutant — is gone
+  *structurally*, not via ignore-comment. Same regex budget on the `validate`
+  hot path; no perf regression.
 - `parseRutLike` gains the leading-zero guard; the now-redundant `0*` prefix was
   dropped from the `compact` / `compactWithHyphen` / `dotted` shape patterns to
   document the intent at the grammar level.
-- The differential harness now treats `leading-zeros` and `len-64-padded-valid`
-  as expected `v3.4.0 → current` regressions, and its `random-digits` stratum no
-  longer emits leading-zero strings (so that catch-all only ever reports a *real*
-  surprise). Regenerated `tests/differential-report.md` and relabeled the report
-  from "v4.0.0" to "current (5.0.0)".
-- Test suite updated accordingly (**496 tests**): the leading-zero *acceptance*
-  cases became *rejection* cases, and the 64-char boundary tests now use
-  whitespace padding — the only remaining way to reach the cap with otherwise
-  valid input now that zero-padding is rejected.
+- **The differential harness now carries a frozen `v4.1.0` baseline** (verbatim
+  `validate` + `equals` from the v4.1.0 tag) alongside the existing `v3.4.0`
+  one — real upgraders of this major come from 4.x. The regenerated
+  `tests/differential-report.md` shows: 4.1.0 → 5.0.0 `validate` regressions are
+  **exactly** the zero-padded shapes (50 001 of 1 000 000 inputs; zero new
+  acceptances), `equals` diverges **only** on wrong-verifier pairs, and
+  `equals(a, b, { requireValid: false })` matches 4.1.0 on **every** one of the
+  50 004 comparison pairs. Same reproducible seed; the `random-digits` stratum
+  still never emits leading-zero strings, so the catch-all only ever reports a
+  *real* surprise.
+- **New property-based laws** (fast-check) pin the 5.0.0 API coherence: the
+  ingestion recipe accepts every zero-padded rendering of a valid RUT (and
+  never a wrong verifier, however padded); recipe acceptance coincides with
+  default-`equals` reflexivity; `equals(clean(a), a)` for every valid `a`;
+  `equals` symmetry in both modes.
+- Test suite updated accordingly (**523 tests** across 16 suites).
 
 ## [4.1.0] - 2026-06-13
 
