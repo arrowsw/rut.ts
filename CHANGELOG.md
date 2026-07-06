@@ -10,7 +10,7 @@ metadata**: they are accurate but summarized, not exhaustive.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [5.0.0] - Unreleased
+## [5.0.0] - 2026-07-06
 
 The **final-shape** major. `5.0.0` closes the validation contract
 (leading-zero padding is rejected by the acceptance predicates), makes
@@ -526,6 +526,7 @@ below cover the cases that do need attention:
 > Interim publishes `1.1.0`, `1.3.0`, and `1.3.1` (Apr–May 2024) were
 > incremental steps between the entries above and are not detailed separately.
 
+[5.0.0]: https://github.com/arrowsw/rut.ts/releases/tag/v5.0.0
 [4.1.0]: https://github.com/arrowsw/rut.ts/releases/tag/v4.1.0
 [4.0.1]: https://github.com/arrowsw/rut.ts/releases/tag/v4.0.1
 [4.0.0]: https://github.com/arrowsw/rut.ts/releases/tag/v4.0.0
