@@ -140,6 +140,29 @@ const cleanRaw = (rut: string): string => {
   return (cleaned.endsWith('K') ? `${digits}K` : digits).slice(0, MAX_RUT_LENGTH)
 }
 
+// Incremental formatting only: true when the raw input's last significant
+// character (ignoring dots, spaces and other garbage) is an ASCII hyphen — the
+// user has closed the body and the verifier is still pending. Same 64-char
+// security bound as `cleanRaw`, so a hyphen beyond it is never honored.
+const endsWithPendingHyphen = (rut: string): boolean =>
+  rut
+    .slice(0, MAX_RUT_INPUT_LENGTH)
+    .replace(/[^0-9kK-]+/g, '')
+    .endsWith('-')
+
+// Groups a digit-only body in thousands from the right (`12345678` →
+// `12.345.678`), or returns it untouched when dots are off. Shared by the
+// canonical and the incremental renderers so both group identically.
+const formatBody = (body: string, dots: boolean): string => {
+  if (!dots) return body
+
+  let result = body.slice(-3)
+  for (let i = 3; i < body.length; i += 3) {
+    result = body.slice(-3 - i, -i) + '.' + result
+  }
+  return result
+}
+
 const normalizeRutBody = (rutBody: unknown): string | null => {
   if (!isBoundedString(rutBody)) return null
 
@@ -340,15 +363,34 @@ const validate = (rut: unknown, options?: ValidateOptions): boolean => {
 // Renders an already-parsed RUT in a canonical presentation — dotted
 // (`12.345.678-5`) or hyphen-only (`12345678-5`). Pure string assembly:
 // callers own any validity check.
-const formatDecomposed = ({ body, verifier }: DecomposedRut, dots: boolean): string => {
-  if (!dots) return `${body}-${verifier}`
+const formatDecomposed = ({ body, verifier }: DecomposedRut, dots: boolean): string =>
+  `${formatBody(body, dots)}-${verifier}`
 
-  const compact = body + verifier
-  let result = compact.slice(-4, -1) + '-' + verifier
-  for (let i = 4; i < compact.length; i += 3) {
-    result = compact.slice(-3 - i, -i) + '.' + result
+// Format-as-you-type renderer. Never throws: it recovers whatever RUT-shaped
+// prefix the input holds and renders it in one of three states — body still
+// being typed, body complete with the verifier pending, or body + verifier.
+const formatIncremental = (rut: string, dots: boolean): string => {
+  const rawClean = cleanRaw(rut)
+  if (rawClean.length === 0) return ''
+
+  // A K can only ever be the verifier, so it closes the value the moment it is
+  // typed: whatever precedes it is the body, however short (`7612K` → `7.612-K`).
+  // A bare `K` has no body to hang a hyphen on and is echoed as-is.
+  if (rawClean.endsWith('K')) {
+    const body = rawClean.slice(0, -1)
+    return body.length === 0 ? rawClean : `${formatBody(body, dots)}-K`
   }
-  return result
+
+  // A trailing hyphen after a complete body (7–8 digits) means "verifier
+  // pending". It is the only signal that tells `12345678-` (8-digit body) apart
+  // from `1234567-8`, so it is kept — otherwise the field would re-split the
+  // body while the user types or deletes the verifier. With 9 digits the value
+  // is already complete and the hyphen is just noise.
+  const isCompleteBody = rawClean.length >= MIN_BODY_LENGTH && rawClean.length <= MAX_BODY_LENGTH
+  if (isCompleteBody && endsWithPendingHyphen(rut)) return `${formatBody(rawClean, dots)}-`
+
+  if (rawClean.length < MIN_RUT_LENGTH) return formatBody(rawClean, dots)
+  return `${formatBody(rawClean.slice(0, -1), dots)}-${rawClean.slice(-1)}`
 }
 
 /**
@@ -381,31 +423,7 @@ function format(rut: string, options?: FormatOptions): string | null {
   if (typeof rut !== 'string') return fail<string>(rut, opts.throwOnError)
   if (rut.length === 0) return ''
 
-  if (opts.incremental) {
-    const rawClean = cleanRaw(rut)
-    if (rawClean.length === 0) return ''
-
-    if (rawClean.length < MIN_RUT_LENGTH) {
-      if (!opts.dots || rawClean.length <= 3) return rawClean
-
-      let result = rawClean.slice(-3)
-      for (let i = 3; i < rawClean.length; i += 3) {
-        const start = rawClean.length - 3 - i < 0 ? 0 : rawClean.length - 3 - i
-        result = rawClean.slice(start, rawClean.length - i) + '.' + result
-      }
-      return result
-    }
-
-    let result = rawClean.slice(-4, -1) + '-' + rawClean.slice(-1)
-    for (let i = 4; i < rawClean.length; i += 3) {
-      const start = rawClean.length - 3 - i < 0 ? 0 : rawClean.length - 3 - i
-      result = opts.dots
-        ? rawClean.slice(start, rawClean.length - i) + '.' + result
-        : rawClean.slice(start, rawClean.length - i) + result
-    }
-
-    return result
-  }
+  if (opts.incremental) return formatIncremental(rut, opts.dots)
 
   const parsed = parseLenient(rut)
   if (parsed === null || !isValidDecomposed(parsed)) return fail<string>(rut, opts.throwOnError)

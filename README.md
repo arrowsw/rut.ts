@@ -233,6 +233,12 @@ const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 (use `format()` / `validate()`). Incremental output may not be a valid RUT until
 the input is complete — always `validate()` the final value.
 
+A trailing hyphen after a complete body (7 or 8 digits) is kept as "verifier
+pending" — `format('12345678-', { incremental: true })` → `'12.345.678-'` — so
+the field doesn't re-split the body while the user types or deletes the
+verifier. A `K` is always treated as the verifier, however short the input:
+`format('7612K', { incremental: true })` → `'7.612-K'`.
+
 ## TypeScript types
 
 ```typescript

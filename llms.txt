@@ -25,7 +25,7 @@ Key technical details:
 ## Core API Functions
 
 - [validate()](https://rut.arrowsw.com/docs/features/validate): Validate RUT format and verifier digit with optional strict mode to detect suspicious patterns
-- [format()](https://rut.arrowsw.com/docs/features/format): Format RUTs with dots and hyphens, supports incremental mode for real-time input
+- [format()](https://rut.arrowsw.com/docs/features/format): Format RUTs with dots and hyphens, supports incremental mode for real-time input (a trailing hyphen after a complete body is kept as "verifier pending" — `12345678-` → `12.345.678-` — and a `K` is always treated as the verifier, however short the input — `7612K` → `7.612-K`)
 - [clean()](https://rut.arrowsw.com/docs/features/clean): Remove formatting, special characters, and leading zeros from RUT strings
 - [decompose()](https://rut.arrowsw.com/docs/features/decompose): Split a RUT into its body (numeric part) and verifier digit components
 - [calculateVerifier()](https://rut.arrowsw.com/docs/features/calculate-verifier): Calculate the correct verifier digit for a given RUT body using Modulo 11
