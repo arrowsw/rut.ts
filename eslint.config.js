@@ -8,10 +8,10 @@ import globals from 'globals'
 //   - eslint:recommended + @typescript-eslint recommended
 //   - prettier integration (eslint-plugin-prettier + eslint-config-prettier)
 //   - the three @typescript-eslint rules we intentionally relax
-//   - dist/ and minified bundles excluded
+//   - dist/, minified bundles and local Claude Code worktrees (.claude/) excluded
 export default tseslint.config(
   {
-    ignores: ['dist/', '**/*.min.js'],
+    ignores: ['dist/', '**/*.min.js', '.claude/'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
