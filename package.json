@@ -77,7 +77,7 @@
     "deconstruct"
   ],
   "repository": {
-    "url": "https://github.com/arrowsw/rut.ts.git",
+    "url": "git+https://github.com/arrowsw/rut.ts.git",
     "type": "git"
   },
   "bugs": {
