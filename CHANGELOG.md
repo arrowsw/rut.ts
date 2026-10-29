@@ -10,6 +10,36 @@ metadata**: they are accurate but summarized, not exhaustive.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Format-as-you-type re-split the body as soon as the hyphen was typed.**
+  `format(input, { incremental: true })` discarded a trailing hyphen, so
+  `12345678-` and `12.345.678-` both rendered as `1.234.567-8` — the eighth
+  body digit was reinterpreted as the verifier. The same happened when
+  backspacing over the verifier of an already formatted 8-digit RUT:
+  `12.345.678-5` → delete the `5` → `12.345.678-` → the field jumped to
+  `1.234.567-8`. A trailing hyphen after a complete body (7 or 8 digits) now
+  means "body complete, verifier pending" and is kept:
+  `format('12345678-', { incremental: true })` → `'12.345.678-'`,
+  `format('1234567-', { incremental: true })` → `'1.234.567-'`, and with
+  `dots: false` → `'12345678-'` / `'1234567-'`. With 9 or more digits before
+  it the hyphen is still ignored and the value is capped to 9 significant
+  characters as before; a hyphen anywhere else is still stripped.
+- **Incremental `format()` grouped a short `K` as if it were a digit.** A `K`
+  can only ever be the verifier, yet inputs shorter than 8 characters ending
+  in `K` were grouped in thousands with the `K` inside the body: `76120K` →
+  `761.20K`, `7612k` → `76.12K`. They now render as body + `-K`:
+  `format('76120K', { incremental: true })` → `'76.120-K'`, `'7612k'` →
+  `'7.612-K'`, `'7k'` → `'7-K'`, and with `dots: false` → `'76120-K'`.
+  Inputs of 8 or more characters ending in `K` (`'7612012k'` →
+  `'7.612.012-K'`) are unchanged, and a `K` that is not the last character is
+  still dropped.
+
+Only `incremental: true` is affected: `validate()`, `isRutLike()`, `clean()`
+and standard `format()` are untouched.
+
 ## [5.0.0] - 2026-07-06
 
 The **final-shape** major. `5.0.0` closes the validation contract
@@ -526,6 +556,7 @@ below cover the cases that do need attention:
 > Interim publishes `1.1.0`, `1.3.0`, and `1.3.1` (Apr–May 2024) were
 > incremental steps between the entries above and are not detailed separately.
 
+[Unreleased]: https://github.com/arrowsw/rut.ts/compare/v5.0.0...HEAD
 [5.0.0]: https://github.com/arrowsw/rut.ts/releases/tag/v5.0.0
 [4.1.0]: https://github.com/arrowsw/rut.ts/releases/tag/v4.1.0
 [4.0.1]: https://github.com/arrowsw/rut.ts/releases/tag/v4.0.1

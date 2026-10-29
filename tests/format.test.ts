@@ -191,11 +191,161 @@ describe('format', () => {
       expect(format('KK345678', { incremental: true })).toBe('345.678')
     })
 
+    describe('trailing hyphen — body complete, verifier pending', () => {
+      // The hyphen is the only signal that distinguishes an 8-digit body
+      // awaiting its verifier (`12345678-`) from a 7-digit body + verifier
+      // (`1234567-8`). Dropping it made the field re-split the body as soon
+      // as the user typed (or deleted) the verifier.
+      test.each([
+        ['12345678-', '12.345.678-'],
+        ['12.345.678-', '12.345.678-'],
+        ['1234567-', '1.234.567-'],
+        ['1.234.567-', '1.234.567-'],
+        ['012345678-', '12.345.678-'], // leading zeros stripped, as everywhere else
+        ['12345678- ', '12.345.678-'], // trailing garbage after the hyphen is ignored
+        // A controlled input already showing `1.234.567-8` when the user types `-`.
+        ['1.234.567-8-', '12.345.678-'],
+      ])('format(%p, { incremental: true }) === %p', (input, expected) => {
+        expect(format(input, { incremental: true })).toBe(expected)
+      })
+
+      test.each([
+        ['12345678-', '12345678-'],
+        ['1234567-', '1234567-'],
+        ['12.345.678-', '12345678-'],
+      ])('with dots:false, format(%p, incremental) === %p', (input, expected) => {
+        expect(format(input, { incremental: true, dots: false })).toBe(expected)
+      })
+
+      test('ignores the hyphen once 9 or more digits precede it (cap to 9 significant chars)', () => {
+        expect(format('123456789-', { incremental: true })).toBe('12.345.678-9')
+        expect(format('12345678901234-', { incremental: true })).toBe('12.345.678-9')
+      })
+
+      test('a hyphen after fewer than 7 digits is still stripped', () => {
+        expect(format('123456-', { incremental: true })).toBe('123.456')
+        expect(format('12-', { incremental: true })).toBe('12')
+        expect(format('-', { incremental: true })).toBe('')
+      })
+
+      test('a hyphen that is not the last significant character is still stripped', () => {
+        expect(format('12345678-5', { incremental: true })).toBe('12.345.678-5')
+        expect(format('1234567-K', { incremental: true })).toBe('1.234.567-K')
+        expect(format('12-345-678', { incremental: true })).toBe('1.234.567-8')
+      })
+
+      test('a hyphen after a K is ignored — the K already closed the value', () => {
+        expect(format('1234567K-', { incremental: true })).toBe('1.234.567-K')
+      })
+    })
+
+    describe('K is always the verifier', () => {
+      // A K can never be part of the body, so the moment it is typed the
+      // digits before it are the (possibly short) body and the K is the
+      // verifier. Previously `76120K` rendered as `761.20K`.
+      test.each([
+        ['76120K', '76.120-K'],
+        ['7612k', '7.612-K'],
+        ['123K', '123-K'],
+        ['7k', '7-K'],
+      ])('format(%p, { incremental: true }) === %p', (input, expected) => {
+        expect(format(input, { incremental: true })).toBe(expected)
+      })
+
+      test.each([
+        ['76120K', '76120-K'],
+        ['7k', '7-K'],
+      ])('with dots:false, format(%p, incremental) === %p', (input, expected) => {
+        expect(format(input, { incremental: true, dots: false })).toBe(expected)
+      })
+
+      test('inputs of 8 or more chars ending in K are unchanged', () => {
+        expect(format('7612012k', { incremental: true })).toBe('7.612.012-K')
+        expect(format('1234567K', { incremental: true })).toBe('1.234.567-K')
+        expect(format('12345678K', { incremental: true })).toBe('12.345.678-K')
+      })
+
+      test('a bare K (no body yet) renders as K, never as a lone hyphen', () => {
+        expect(format('K', { incremental: true })).toBe('K')
+        expect(format('0K', { incremental: true })).toBe('K')
+      })
+    })
+
+    describe('keystroke-by-keystroke sequence', () => {
+      test('typing 123456785 with an explicit hyphen, then backspacing over the verifier', () => {
+        // Raw input at each keystroke (as the task that found the bug describes it).
+        const typing: [string, string][] = [
+          ['1', '1'],
+          ['12', '12'],
+          ['123', '123'],
+          ['1234', '1.234'],
+          ['12345', '12.345'],
+          ['123456', '123.456'],
+          ['1234567', '1.234.567'],
+          ['12345678', '1.234.567-8'],
+          ['12345678-', '12.345.678-'],
+          ['12345678-5', '12.345.678-5'],
+        ]
+        for (const [input, expected] of typing) {
+          expect(format(input, { incremental: true })).toBe(expected)
+        }
+
+        // Backspace from the complete value: the hyphen keeps the 8-digit body
+        // together; once it is deleted too, the 8 remaining digits fall back to
+        // the documented 7-digit-body + verifier reading.
+        expect(format('12.345.678-5', { incremental: true })).toBe('12.345.678-5')
+        expect(format('12.345.678-', { incremental: true })).toBe('12.345.678-')
+        expect(format('12.345.678', { incremental: true })).toBe('1.234.567-8')
+      })
+
+      test('controlled input: each key is appended to the previously formatted value', () => {
+        const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '-', '5']
+        const expected = [
+          '1',
+          '12',
+          '123',
+          '1.234',
+          '12.345',
+          '123.456',
+          '1.234.567',
+          '1.234.567-8',
+          '12.345.678-',
+          '12.345.678-5',
+        ]
+        let value = ''
+        keys.forEach((key, i) => {
+          value = format(value + key, { incremental: true })
+          expect(value).toBe(expected[i])
+        })
+
+        // Backspace twice: verifier, then hyphen.
+        value = format(value.slice(0, -1), { incremental: true })
+        expect(value).toBe('12.345.678-')
+        value = format(value.slice(0, -1), { incremental: true })
+        expect(value).toBe('1.234.567-8')
+      })
+
+      test('with dots:false the same sequence keeps the hyphen too', () => {
+        const opts = { incremental: true, dots: false }
+        expect(format('12345678', opts)).toBe('1234567-8')
+        expect(format('12345678-', opts)).toBe('12345678-')
+        expect(format('12345678-5', opts)).toBe('12345678-5')
+        // Backspace: verifier, then hyphen.
+        expect(format('12345678-', opts)).toBe('12345678-')
+        expect(format('12345678', opts)).toBe('1234567-8')
+      })
+    })
+
     test('incremental mode never throws regardless of throwOnError', () => {
       // Documented contract: throwOnError is ignored in incremental mode.
       expect(() => format('@@@@', { incremental: true, throwOnError: true })).not.toThrow()
       expect(() => format('00000000', { incremental: true, throwOnError: true })).not.toThrow()
       expect(() => format('K@K@K@', { incremental: true, throwOnError: true })).not.toThrow()
+      // Trailing-hyphen and K inputs introduced by the format-as-you-type fixes.
+      for (const input of ['-', '--', '12345678-', '12345678--', 'K', '-K', 'K-', '7k', '1234567K-']) {
+        expect(() => format(input, { incremental: true, throwOnError: true })).not.toThrow()
+        expect(typeof format(input, { incremental: true, throwOnError: true })).toBe('string')
+      }
     })
   })
 })
