@@ -11,6 +11,10 @@ const CONCURRENCY = 8
 // Sites like npmjs.com answer bots with these; the link may be fine, so it is
 // reported as unverified rather than broken.
 const BOT_BLOCKED = new Set([401, 403, 429])
+// Links skipped on purpose because they are known-good but unverifiable from a
+// script (e.g. bot protection). npmjs.com blocks automated requests with 403;
+// the package itself is confirmed via https://registry.npmjs.org/rut.ts.
+const BYPASS = new Set(['https://www.npmjs.com/package/rut.ts'])
 const strict = process.argv.includes('--strict')
 
 const URL_RE = /https?:\/\/[^\s<>"'`)\]]+/g
@@ -57,7 +61,8 @@ for (const file of FILES) {
   }
 }
 
-const queue = [...links.keys()]
+const queue = [...links.keys()].filter((url) => !BYPASS.has(url))
+const total = queue.length
 const broken = []
 const unverified = []
 await Promise.all(
@@ -73,7 +78,7 @@ await Promise.all(
 for (const { url, problem } of unverified) {
   console.log(`ℹ️  Could not verify (${problem}, likely bot protection): ${url}`)
 }
-console.log(`Checked ${links.size} unique links in ${FILES.join(', ')}.`)
+console.log(`Checked ${total} unique links in ${FILES.join(', ')} (${links.size - total} bypassed).`)
 if (broken.length === 0) {
   console.log('✅ No broken links found.')
 } else {
