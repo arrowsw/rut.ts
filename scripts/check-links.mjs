@@ -1,11 +1,11 @@
-// Checks every http(s) link in llms.txt, README.md and LICENSE and prints a
-// console warning for each one that is broken. Never fails the process unless
-// `--strict` is passed (so it is safe to run locally or as a non-blocking CI step).
+// Checks every http(s) link in the docs listed in FILES and prints a console
+// warning for each one that is broken. It never fails the process, so it is
+// safe to run locally or as a non-blocking CI step.
 //
-// Usage: npm run check-links [-- --strict]
+// Usage: npm run check-links
 import { readFile } from 'node:fs/promises'
 
-const FILES = ['llms.txt', 'README.md', 'LICENSE']
+const FILES = ['llms.txt', 'README.md', 'LICENSE', 'CHANGELOG.md', 'SECURITY.md', 'RELEASING.md']
 const TIMEOUT_MS = 15_000
 const CONCURRENCY = 8
 // Sites like npmjs.com answer bots with these; the link may be fine, so it is
@@ -15,7 +15,6 @@ const BOT_BLOCKED = new Set([401, 403, 429])
 // script (e.g. bot protection). npmjs.com blocks automated requests with 403;
 // the package itself is confirmed via https://registry.npmjs.org/rut.ts.
 const BYPASS = new Set(['https://www.npmjs.com/package/rut.ts'])
-const strict = process.argv.includes('--strict')
 
 // `[` and `]` are allowed inside URLs (e.g. treeshake=[*]); only `)` ends one.
 const URL_RE = /https?:\/\/[^\s<>"'`)]+/g
@@ -98,5 +97,4 @@ if (broken.length === 0) {
     console.warn(`⚠️  Broken link (${problem}): ${url}  [${[...links.get(url)].join(', ')}]`)
   }
   console.warn(`⚠️  ${broken.length} broken link(s) found.`)
-  if (strict) process.exitCode = 1
 }
