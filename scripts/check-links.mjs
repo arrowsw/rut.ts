@@ -17,9 +17,21 @@ const BOT_BLOCKED = new Set([401, 403, 429])
 const BYPASS = new Set(['https://www.npmjs.com/package/rut.ts'])
 const strict = process.argv.includes('--strict')
 
-const URL_RE = /https?:\/\/[^\s<>"'`)\]]+/g
+// `[` and `]` are allowed inside URLs (e.g. treeshake=[*]); only `)` ends one.
+const URL_RE = /https?:\/\/[^\s<>"'`)]+/g
 
-const extract = (text) => [...text.matchAll(URL_RE)].map((m) => m[0].replace(/[.,;:!?*_]+$/, ''))
+// Trailing sentence punctuation is not part of the URL. `*` and `_` are kept
+// (they can be real URL characters) and a closing `]` is only stripped when it
+// has no matching `[` inside the URL (e.g. `[https://x.com]`).
+const clean = (url) => {
+  url = url.replace(/[.,;:!?]+$/, '')
+  while (url.endsWith(']') && url.split(']').length > url.split('[').length) {
+    url = url.slice(0, -1)
+  }
+  return url
+}
+
+const extract = (text) => [...text.matchAll(URL_RE)].map((m) => clean(m[0]))
 
 const request = async (url, method) => {
   const res = await fetch(url, {
