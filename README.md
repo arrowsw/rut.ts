@@ -82,7 +82,7 @@ try {
 mask('12.345.678-5') // '12.***.***-5'
 equals('12.345.678-5', '123456785') // true  (same valid RUT, different shapes)
 equals('12345678-9', '12345678-9') // false (wrong verifier — not a RUT at all)
-equals('12345678-9', '12345678-9', { requireValid: false }) // true (4.x-style shape comparison)
+equals('12345678-9', '12345678-9', { requireValid: false }) // true (pure shape comparison)
 
 // Generation options
 generate() // '29.561.896-5'  (8-digit dotted, default)
@@ -152,10 +152,9 @@ surrounding whitespace, verifier `k`/`K` case-insensitive):
 
 Anything else is rejected, **including leading-zero padding** (`012.345.678-5`,
 `0012345678` — a canonical RUT has none, and padding forms an unbounded family
-of strings for one RUT), **non-canonical dot grouping** that older versions
-accepted (`12.345678-5`, `12345.678-5`, `1.2.3.4-5`), the dotted shape
-**without its verifier hyphen** (`12.345.6785`), internal spaces, commas, and
-any input longer than 64 chars.
+of strings for one RUT), **non-canonical dot grouping** (`12.345678-5`,
+`12345.678-5`, `1.2.3.4-5`), the dotted shape **without its verifier hyphen**
+(`12.345.6785`), internal spaces, commas, and any input longer than 64 chars.
 
 > **Zero-padded data?** Leading zeros are rejected by `validate()` /
 > `isValidRut()` / `isRutLike()`, but `clean()`, `format()` and `equals()` stay
@@ -167,10 +166,7 @@ any input longer than 64 chars.
 > refuses to _process_ implausibly long strings, neutralizing CPU/ReDoS-style
 > abuse before any parsing runs.
 
-> 💡 **Migrating a dataset?** Use the recipe below, or sanity-check a
-> representative sample with `npm run test:differential` (writes
-> `tests/differential-report.md`, including a dedicated 4.1.0 → 5.0.0 section).
-> `clean()` / `decompose()` stay permissive — never treat their output as
+> 💡 `clean()` / `decompose()` stay permissive — never treat their output as
 > "validated".
 
 ## Ingesting dirty or legacy input
@@ -265,13 +261,9 @@ import type {
 
 ## Upgrading
 
-`5.0.0` is the **final-shape** release: the `validate()` contract is frozen, and
-no further breaking changes are planned. Coming from `4.x`, the two behavior
-changes are leading-zero rejection in the predicates and the validity-checking
-`equals` default — the [**CHANGELOG**](./CHANGELOG.md) has a before/after table
-and migration notes for both (in short: ingest dirty data with the
-`clean()`-then-`validate()` recipe above, and pass `{ requireValid: false }` to
-`equals` for the old comparison).
+The `validate()` contract is frozen and no further breaking changes are planned.
+Release notes and migration notes for every version live in the
+[**CHANGELOG**](./CHANGELOG.md).
 
 ## Contributing
 
