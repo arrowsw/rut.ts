@@ -12,37 +12,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [5.0.1] - 2026-11-06
 
+A **patch** release that fixes format-as-you-type. `format(input, { incremental:
+true })` no longer regroups the number when the user types the hyphen or deletes
+the verifier, and a `K` is always rendered as the verifier. Nothing else changes
+at runtime: `validate()`, `isValidRut()`, `isRutLike()`, `clean()` and standard
+`format()` behave exactly as in `5.0.0`, and the Modulo 11 algorithm is
+**unchanged**.
+
+### Why
+
+While someone is typing, eight digits are ambiguous: they can be a complete
+7-digit RUT (`1.234.567-8`) or an 8-digit body still waiting for its verifier.
+The hyphen is the only signal the user gives, and incremental mode was throwing
+it away. In a form field that meant the number visibly regrouped the moment the
+hyphen was typed, and again when backspacing over the verifier to fix a typo.
+
+### Do I need to change anything?
+
+**No.** Upgrade and your form inputs behave better. If you never pass
+`incremental: true`, this release changes nothing for you at runtime. The only
+thing to check: a test or snapshot that asserted one of the old outputs below.
+
 ### Fixed
 
-- **Format-as-you-type re-split the body as soon as the hyphen was typed.**
-  `format(input, { incremental: true })` discarded a trailing hyphen, so
-  `12345678-` and `12.345.678-` both rendered as `1.234.567-8` — the eighth
-  body digit was reinterpreted as the verifier. The same happened when
-  backspacing over the verifier of an already formatted 8-digit RUT:
-  `12.345.678-5` → delete the `5` → `12.345.678-` → the field jumped to
-  `1.234.567-8`. A trailing hyphen after a complete body (7 or 8 digits) now
-  means "body complete, verifier pending" and is kept:
-  `format('12345678-', { incremental: true })` → `'12.345.678-'`,
-  `format('1234567-', { incremental: true })` → `'1.234.567-'`, and with
-  `dots: false` → `'12345678-'` / `'1234567-'`. With 9 or more digits before
-  it the hyphen is still ignored and the value is capped to 9 significant
-  characters as before; a hyphen anywhere else is still stripped.
-- **Incremental `format()` grouped a short `K` as if it were a digit.** A `K`
-  can only ever be the verifier, yet inputs shorter than 8 characters ending
-  in `K` were grouped in thousands with the `K` inside the body: `76120K` →
-  `761.20K`, `7612k` → `76.12K`. They now render as body + `-K`:
-  `format('76120K', { incremental: true })` → `'76.120-K'`, `'7612k'` →
-  `'7.612-K'`, `'7k'` → `'7-K'`, and with `dots: false` → `'76120-K'`.
-  Inputs of 8 or more characters ending in `K` (`'7612012k'` →
-  `'7.612.012-K'`) are unchanged, and a `K` that is not the last character is
-  still dropped.
-- **`llms.txt` linked to dead documentation pages.** Its
-  `https://rut.arrowsw.com/docs/...` links answered 404. They now use the live
-  `/documentation` prefix, and `isValidRut()`, `mask()` and `equals()` link to
-  their own pages on the docs site instead of the README.
+**A trailing hyphen now means "body complete, verifier pending".** It is kept
+after a complete body (7 or 8 digits) instead of being discarded.
 
-The only runtime change is in `incremental: true`: `validate()`, `isRutLike()`,
-`clean()` and standard `format()` are untouched.
+| Input | `5.0.0` | `5.0.1` |
+| --- | --- | --- |
+| `12345678-` | `1.234.567-8` | `12.345.678-` |
+| `1234567-` | `1.234.567` | `1.234.567-` |
+| `12.345.678-5`, then delete the `5` | jumps to `1.234.567-8` | stays `12.345.678-` |
+| `12345678-` with `dots: false` | `1234567-8` | `12345678-` |
+
+**A `K` is always the verifier.** Short inputs ending in `K` used to be grouped
+in thousands with the `K` inside the body.
+
+| Input | `5.0.0` | `5.0.1` |
+| --- | --- | --- |
+| `76120K` | `761.20K` | `76.120-K` |
+| `7612k` | `76.12K` | `7.612-K` |
+| `7k` | `7K` | `7-K` |
+
+**`llms.txt` linked to dead documentation pages.** Its
+`https://rut.arrowsw.com/docs/...` links answered 404. They now use the live
+`/documentation` prefix, and `isValidRut()`, `mask()` and `equals()` link to
+their own pages on the docs site.
+
+### Unchanged
+
+- **Typing without a hyphen behaves exactly as before.** `12345678` still shows
+  `1.234.567-8`, and a ninth character regroups it to `12.345.678-5`.
+- **The hyphen only counts at the end of a complete body.** With 9 or more
+  digits it is ignored, and a hyphen anywhere else is still stripped.
+- **A `K` that is not the last character is still dropped**, and inputs of 8 or
+  more characters ending in `K` (`7612012k` → `7.612.012-K`) render as before.
+- **Incremental mode still never throws**, whatever the input.
+
+### Docs
+
+- The README and `llms.txt` now describe the library as it is today.
+  Version-by-version history lives only in the CHANGELOG.
+
+### Internal
+
+- 25 new tests cover the keystroke-by-keystroke sequences, including the hyphen
+  and backspace steps.
+- `npm run check-links` checks every link in the docs files and warns about
+  broken ones.
+- Added `CODEOWNERS`.
+
+Thanks to @JonDotsoy for the `llms.txt` fix and the link checker, their first
+contributions to the project.
 
 ## [5.0.0] - 2026-07-06
 
