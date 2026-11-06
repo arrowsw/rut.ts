@@ -156,6 +156,13 @@ of strings for one RUT), **non-canonical dot grouping** (`12.345678-5`,
 `12345.678-5`, `1.2.3.4-5`), the dotted shape **without its verifier hyphen**
 (`12.345.6785`), internal spaces, commas, and any input longer than 64 chars.
 
+The body must be **7 or 8 digits** (`1.000.000`–`99.999.999`), and that range is
+part of the contract: a shorter body is rejected even when its verifier is
+correct (`validate('999999-K')` → `false`, `calculateVerifier('999999')`
+throws). Historical RUNs below one million exist, and some SII document formats
+still admit them, but they are deliberately out of scope. If you must accept
+one, check its Modulo 11 digit outside `rut.ts`.
+
 > **Zero-padded data?** Leading zeros are rejected by `validate()` /
 > `isValidRut()` / `isRutLike()`, but `clean()`, `format()` and `equals()` stay
 > permissive and still strip them. If you ingest fixed-width/zero-padded values,

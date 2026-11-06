@@ -10,6 +10,28 @@ metadata**: they are accurate but summarized, not exhaustive.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Docs: the 7–8 digit body range is stated as part of the frozen contract.**
+  The README and `llms.txt` now say explicitly that the body must be
+  `1.000.000`–`99.999.999`, and that a shorter body is rejected even when its
+  verifier is correct (`validate('999999-K')` → `false`,
+  `calculateVerifier('999999')` throws). Historical RUNs below one million are
+  deliberately out of scope. No behavior change: this documents what the
+  library already does.
+
+### Internal
+
+- **Contract tests pin the body range.** The existing "too short" cases also
+  carried a wrong verifier, so nothing in the unit suites proved that
+  `validate()`, `isRutLike()`, `isValidRut()` or `calculateVerifier()` reject a
+  body *for being too short*. 25 new tests use inputs with a correct Modulo 11
+  digit below the floor (`999999-K`, `999.999-K`, `100000-4`, `1000-6`, `1-9`)
+  and check the exact boundaries (`999999` / `1000000` / `99999999` /
+  `100000000`). Test suite: **573 tests**.
+
 ## [5.0.1] - 2026-11-06
 
 A **patch** release that fixes format-as-you-type. `format(input, { incremental:
@@ -601,6 +623,7 @@ below cover the cases that do need attention:
 > Interim publishes `1.1.0`, `1.3.0`, and `1.3.1` (Apr–May 2024) were
 > incremental steps between the entries above and are not detailed separately.
 
+[Unreleased]: https://github.com/arrowsw/rut.ts/compare/v5.0.1...HEAD
 [5.0.1]: https://github.com/arrowsw/rut.ts/releases/tag/v5.0.1
 [5.0.0]: https://github.com/arrowsw/rut.ts/releases/tag/v5.0.0
 [4.1.0]: https://github.com/arrowsw/rut.ts/releases/tag/v4.1.0
