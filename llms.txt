@@ -17,43 +17,43 @@ Key technical details:
 
 ## Getting Started
 
-- [Installation & Quick Start](https://rut.arrowsw.com/docs): Getting started guide with installation and basic examples
+- [Installation & Quick Start](https://rut.arrowsw.com/documentation): Getting started guide with installation and basic examples
 - [Package on npm](https://www.npmjs.com/package/rut.ts): npm registry page with version history and stats
 - [GitHub Repository](https://github.com/arrowsw/rut.ts): Source code, issues, and contribution guidelines
 - [README](https://github.com/arrowsw/rut.ts/blob/canary/README.md): Quick reference with code examples
 
 ## Core API Functions
 
-- [validate()](https://rut.arrowsw.com/docs/features/validate): Validate RUT format and verifier digit with optional strict mode to detect suspicious patterns
-- [format()](https://rut.arrowsw.com/docs/features/format): Format RUTs with dots and hyphens, supports incremental mode for real-time input
-- [clean()](https://rut.arrowsw.com/docs/features/clean): Remove formatting, special characters, and leading zeros from RUT strings
-- [decompose()](https://rut.arrowsw.com/docs/features/decompose): Split a RUT into its body (numeric part) and verifier digit components
-- [calculateVerifier()](https://rut.arrowsw.com/docs/features/calculate-verifier): Calculate the correct verifier digit for a given RUT body using Modulo 11
-- [generate()](https://rut.arrowsw.com/docs/features/generate): Generate valid random RUT numbers for testing and development
-- [getBody()](https://rut.arrowsw.com/docs/features/get-body): Extract only the body (numeric part) from a formatted or unformatted RUT
-- [getVerifier()](https://rut.arrowsw.com/docs/features/get-verifier): Extract only the verifier digit from a formatted or unformatted RUT
-- [isRutLike()](https://rut.arrowsw.com/docs/features/is-rut-like): Check if a string matches RUT format without full validation
-- [isValidRut()](https://github.com/arrowsw/rut.ts/blob/canary/README.md): Type guard that narrows a value to the branded `Rut` type when valid (supports strict mode)
-- [mask()](https://github.com/arrowsw/rut.ts/blob/canary/README.md): Mask a RUT for safe logging/display, keeping only the leading group and verifier (`12.345.678-5` → `12.***.***-5`)
-- [equals()](https://github.com/arrowsw/rut.ts/blob/canary/README.md): Answer "same RUT?" across shapes — normalizes both arguments and, by default, requires the shared value to pass Modulo 11 (`{ requireValid: false }` restores the pure shape comparison)
+- [validate()](https://rut.arrowsw.com/documentation/features/validate): Validate RUT format and verifier digit with optional strict mode to detect suspicious patterns
+- [format()](https://rut.arrowsw.com/documentation/features/format): Format RUTs with dots and hyphens, supports incremental mode for real-time input
+- [clean()](https://rut.arrowsw.com/documentation/features/clean): Remove formatting, special characters, and leading zeros from RUT strings
+- [decompose()](https://rut.arrowsw.com/documentation/features/decompose): Split a RUT into its body (numeric part) and verifier digit components
+- [calculateVerifier()](https://rut.arrowsw.com/documentation/features/calculate-verifier): Calculate the correct verifier digit for a given RUT body using Modulo 11
+- [generate()](https://rut.arrowsw.com/documentation/features/generate): Generate valid random RUT numbers for testing and development
+- [getBody()](https://rut.arrowsw.com/documentation/features/get-body): Extract only the body (numeric part) from a formatted or unformatted RUT
+- [getVerifier()](https://rut.arrowsw.com/documentation/features/get-verifier): Extract only the verifier digit from a formatted or unformatted RUT
+- [isRutLike()](https://rut.arrowsw.com/documentation/features/is-rut-like): Check if a string matches RUT format without full validation
+- [isValidRut()](https://rut.arrowsw.com/documentation/features/is-valid-rut): Type guard that narrows a value to the branded `Rut` type when valid (supports strict mode)
+- [mask()](https://rut.arrowsw.com/documentation/features/mask): Mask a RUT for safe logging/display, keeping only the leading group and verifier (`12.345.678-5` → `12.***.***-5`)
+- [equals()](https://rut.arrowsw.com/documentation/features/equals): Answer "same RUT?" across shapes — normalizes both arguments and, by default, requires the shared value to pass Modulo 11 (`{ requireValid: false }` restores the pure shape comparison)
 - [InvalidRutError](https://github.com/arrowsw/rut.ts/blob/canary/README.md): Typed error (class with `code: 'INVALID_RUT'`) thrown by the safe helpers; catch it instead of matching the message text
 
 ## Practical Examples
 
-- [Basic Usage](https://rut.arrowsw.com/docs/examples/basic-usage): Simple examples of the most common operations
-- [Form Integration](https://rut.arrowsw.com/docs/examples/form-integration): How to integrate RUT formatting in HTML forms with real-time validation
-- [React Example](https://rut.arrowsw.com/docs/examples/react-example): Complete React component with RUT input, validation, and error handling
-- [Error Handling](https://rut.arrowsw.com/docs/examples/error-handling): Best practices for handling errors and using safe mode
+- [Basic Usage](https://rut.arrowsw.com/documentation/examples/basic-usage): Simple examples of the most common operations
+- [Form Integration](https://rut.arrowsw.com/documentation/examples/form-integration): How to integrate RUT formatting in HTML forms with real-time validation
+- [React Example](https://rut.arrowsw.com/documentation/examples/react-example): Complete React component with RUT input, validation, and error handling
+- [Error Handling](https://rut.arrowsw.com/documentation/examples/error-handling): Best practices for handling errors and using safe mode
 
 ## Reference Documentation
 
-- [API Reference](https://rut.arrowsw.com/docs/api-reference): Complete API documentation with all function signatures and TypeScript types
-- [TypeScript Types](https://rut.arrowsw.com/docs/api-reference#typescript-types): Exported types including DecomposedRut, FormatOptions, ValidateOptions, SafeOptions, VerifierDigit, Rut, and GenerateOptions
+- [API Reference](https://rut.arrowsw.com/documentation/api-reference): Complete API documentation with all function signatures and TypeScript types
+- [TypeScript Types](https://rut.arrowsw.com/documentation/api-reference#typescript-types): Exported types including DecomposedRut, FormatOptions, ValidateOptions, SafeOptions, VerifierDigit, Rut, and GenerateOptions
 - [Changelog](https://github.com/arrowsw/rut.ts/blob/canary/CHANGELOG.md): Release notes and breaking changes, starting at v4.0.0
 
 ## Optional
 
-- [Testing Guide](https://rut.arrowsw.com/docs/testing): Information about the test suite with 523 tests (including property-based coherence laws via fast-check and type-level tests via expect-type) covering all edge cases, plus a seeded differential harness against frozen v3.4.0 and v4.1.0 baselines (validate + equals) and periodic Stryker mutation testing (94% on the hot path)
-- [Contributing Guide](https://rut.arrowsw.com/docs/contributing): How to contribute to the project, development setup, and coding standards
+- [Testing Guide](https://rut.arrowsw.com/documentation/testing): Information about the test suite with 523 tests (including property-based coherence laws via fast-check and type-level tests via expect-type) covering all edge cases, plus a seeded differential harness against frozen v3.4.0 and v4.1.0 baselines (validate + equals) and periodic Stryker mutation testing (94% on the hot path)
+- [Contributing Guide](https://rut.arrowsw.com/documentation/contributing): How to contribute to the project, development setup, and coding standards
 - [GitHub Issues](https://github.com/arrowsw/rut.ts/issues): Report bugs, request features, or ask questions
 - [Package Size Analysis](https://pkg-size.dev/rut.ts): Detailed breakdown of package size and bundle analysis
