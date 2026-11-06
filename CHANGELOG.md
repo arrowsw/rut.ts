@@ -12,6 +12,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`RUT_PATTERN`** — the shapes `validate()` accepts, exported as plain
+  regular-expression strings for the places where code cannot run: a JSON
+  Schema or OpenAPI `pattern`, a zod/valibot `regex`, a database `CHECK`
+  constraint.
+
+  ```ts
+  RUT_PATTERN.any     // '^([1-9][0-9]{6,7}-?[0-9kK]|[1-9][0-9]?[.][0-9]{3}[.][0-9]{3}-[0-9kK])$'
+  RUT_PATTERN.compact // '^[1-9][0-9]{6,7}[0-9kK]$'
+  RUT_PATTERN.hyphen  // '^[1-9][0-9]{6,7}-[0-9kK]$'
+  RUT_PATTERN.dotted  // '^[1-9][0-9]?[.][0-9]{3}[.][0-9]{3}-[0-9kK]$'
+  ```
+
+  The strings are anchored, flagless and backslash-free, so they paste into
+  JSON, YAML or SQL without escaping, and they carry the no-leading-zero and
+  7–8 digit rules themselves. For inputs up to the 64-char cap,
+  `isRutLike(s) === new RegExp(RUT_PATTERN.any).test(s.trim())`; a test suite
+  pins that equivalence so the export cannot drift from the validator. **These
+  four strings are part of the frozen contract, byte for byte.**
+
+  A pattern checks shape only, never the verifier digit: pair it with
+  `validate()` wherever code can run. `validate()` itself is untouched and does
+  not use these strings.
 ### Changed
 
 - **Docs: the 7–8 digit body range is stated as part of the frozen contract.**
@@ -30,7 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   body *for being too short*. 25 new tests use inputs with a correct Modulo 11
   digit below the floor (`999999-K`, `999.999-K`, `100000-4`, `1000-6`, `1-9`)
   and check the exact boundaries (`999999` / `1000000` / `99999999` /
-  `100000000`). Test suite: **573 tests**.
+  `100000000`). Test suite: **613 tests** across 17 suites.
 
 ## [5.0.1] - 2026-11-06
 

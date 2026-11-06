@@ -532,7 +532,36 @@ const equals = (a: unknown, b: unknown, options?: EqualsOptions): boolean => {
   return options?.requireValid === false || isValidDecomposed(parsedA)
 }
 
+/**
+ * The canonical shapes accepted by `validate()` / `isValidRut()` /
+ * `isRutLike()`, as regular-expression source strings — for the places where
+ * code cannot run: a JSON Schema or OpenAPI `pattern`, a zod/valibot `regex`, a
+ * database `CHECK` constraint.
+ *
+ * A pattern proves **shape only**, never the verifier digit: pair it with
+ * `validate()` wherever code can run.
+ *
+ * The strings are anchored, flagless and backslash-free, so they can be pasted
+ * into JSON, YAML or SQL as they are. For inputs up to the 64-char cap,
+ * `isRutLike(s) === new RegExp(RUT_PATTERN.any).test(s.trim())`. They are part
+ * of the frozen contract, byte for byte.
+ *
+ * Kept as a plain object (no `Object.freeze`) so bundlers drop it when it is
+ * not imported.
+ */
+const RUT_PATTERN = {
+  /** Any of the three shapes below. */
+  any: '^([1-9][0-9]{6,7}-?[0-9kK]|[1-9][0-9]?[.][0-9]{3}[.][0-9]{3}-[0-9kK])$',
+  /** `123456785` */
+  compact: '^[1-9][0-9]{6,7}[0-9kK]$',
+  /** `12345678-5` */
+  hyphen: '^[1-9][0-9]{6,7}-[0-9kK]$',
+  /** `12.345.678-5` */
+  dotted: '^[1-9][0-9]?[.][0-9]{3}[.][0-9]{3}-[0-9kK]$',
+} as const
+
 export {
+  RUT_PATTERN,
   validate,
   clean,
   format,

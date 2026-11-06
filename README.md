@@ -107,6 +107,7 @@ generate({ count: 3 }) // ['…', '…', '…']
 - **Generation** — cryptographically-backed random valid RUTs, with `bodyLength`, `format` and `count` options.
 - **Calculate verifier** — compute the verifier digit for a given body.
 - **Format detection** — cheap `isRutLike` check without full validation.
+- **Shape patterns** — `RUT_PATTERN` exposes the accepted shapes as regex strings for JSON Schema, OpenAPI, zod and database constraints.
 - **Safe mode** — every safe function supports `throwOnError: false` to return `null` instead of throwing.
 
 <details>
@@ -241,6 +242,48 @@ pending" — `format('12345678-', { incremental: true })` → `'12.345.678-'` �
 the field doesn't re-split the body while the user types or deletes the
 verifier. A `K` is always treated as the verifier, however short the input:
 `format('7612K', { incremental: true })` → `'7.612-K'`.
+
+## Shape patterns for schemas and databases
+
+`RUT_PATTERN` exposes the shapes `validate()` accepts as plain regular-expression
+strings, for the places where code cannot run: an OpenAPI or JSON Schema
+`pattern`, a zod `regex`, a database `CHECK` constraint.
+
+```typescript
+import { RUT_PATTERN, validate } from 'rut.ts'
+
+RUT_PATTERN.hyphen // '^[1-9][0-9]{6,7}-[0-9kK]$'
+RUT_PATTERN.dotted // '^[1-9][0-9]?[.][0-9]{3}[.][0-9]{3}-[0-9kK]$'
+RUT_PATTERN.compact // '^[1-9][0-9]{6,7}[0-9kK]$'
+RUT_PATTERN.any // any of the three shapes
+
+// zod: the pattern documents the shape, the refinement does the real check
+const rut = z
+  .string()
+  .trim()
+  .regex(new RegExp(RUT_PATTERN.hyphen))
+  .refine((value) => validate(value))
+```
+
+```yaml
+# OpenAPI / JSON Schema
+rut:
+  type: string
+  pattern: '^[1-9][0-9]{6,7}-[0-9kK]$'
+```
+
+- **A pattern checks shape only, never the verifier digit.** About ten in
+  eleven strings that match are not real RUTs, so always run `validate()`
+  wherever code can run.
+- **Prefer `hyphen` or `dotted` in API schemas.** `any` and `compact` match any
+  9-digit number, a phone number included.
+- **Safe to paste.** The strings are anchored, flagless and backslash-free, so
+  they need no escaping in JSON, YAML or SQL.
+- **They match `isRutLike()` exactly** in JavaScript, after `trim()` and up to
+  the 64-char cap. Other engines read anchors differently: in Python use
+  `re.fullmatch` (with `re.search`, `$` also matches before a trailing newline;
+  the same goes for Perl), and in Ruby replace `^`/`$` with `\A`/`\z`, because
+  there they match at every line.
 
 ## TypeScript types
 
