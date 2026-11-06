@@ -53,7 +53,7 @@ Key technical details:
 
 ## Optional
 
-- [Testing Guide](https://rut.arrowsw.com/documentation/testing): Information about the test suite with 523 tests (including property-based coherence laws via fast-check and type-level tests via expect-type) covering all edge cases, plus a seeded differential harness against frozen v3.4.0 and v4.1.0 baselines (validate + equals) and periodic Stryker mutation testing (94% on the hot path)
+- [Testing Guide](https://rut.arrowsw.com/documentation/testing): Information about the test suite with 548 tests (including property-based coherence laws via fast-check and type-level tests via expect-type) covering all edge cases, plus a seeded differential harness against frozen v3.4.0 and v4.1.0 baselines (validate + equals) and periodic Stryker mutation testing (94% on the hot path)
 - [Contributing Guide](https://rut.arrowsw.com/documentation/contributing): How to contribute to the project, development setup, and coding standards
 - [GitHub Issues](https://github.com/arrowsw/rut.ts/issues): Report bugs, request features, or ask questions
 - [Package Size Analysis](https://pkg-size.dev/rut.ts): Detailed breakdown of package size and bundle analysis
