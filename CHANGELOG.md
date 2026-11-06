@@ -10,32 +10,72 @@ metadata**: they are accurate but summarized, not exhaustive.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [5.1.0] - 2026-11-06
+
+A **feature** release with one addition: `RUT_PATTERN`, the shapes `validate()`
+accepts, exported as regular-expression strings for schemas and database
+constraints, where code cannot run. Nothing existing changes: every function
+behaves exactly as in `5.0.1`, and the Modulo 11 algorithm is **unchanged**.
+
+### Why
+
+A RUT rule usually has to live in more than one place: the API schema, a
+database column, a backend written in another language. `validate()` cannot run
+in any of them, so the shape gets retyped there as a hand-written regex, and
+hand-written RUT regexes drift. They let leading zeros through, accept 9-digit
+bodies, or match non-ASCII digits through `\d`. `RUT_PATTERN` gives those places
+the exact shape rule the library enforces, and a test suite keeps the two from
+ever disagreeing.
+
+### Do I need to change anything?
+
+**No.** This release only adds an export. If you don't import `RUT_PATTERN`,
+your bundle does not grow: it is a plain object that bundlers drop when unused.
 
 ### Added
 
-- **`RUT_PATTERN`** — the shapes `validate()` accepts, exported as plain
-  regular-expression strings for the places where code cannot run: a JSON
-  Schema or OpenAPI `pattern`, a zod/valibot `regex`, a database `CHECK`
-  constraint.
+- **`RUT_PATTERN`** — the accepted shapes as plain regular-expression strings,
+  for a JSON Schema or OpenAPI `pattern`, a zod/valibot `regex`, or a database
+  `CHECK` constraint.
 
   ```ts
+  import { RUT_PATTERN, validate } from 'rut.ts'
+
   RUT_PATTERN.any     // '^([1-9][0-9]{6,7}-?[0-9kK]|[1-9][0-9]?[.][0-9]{3}[.][0-9]{3}-[0-9kK])$'
-  RUT_PATTERN.compact // '^[1-9][0-9]{6,7}[0-9kK]$'
-  RUT_PATTERN.hyphen  // '^[1-9][0-9]{6,7}-[0-9kK]$'
-  RUT_PATTERN.dotted  // '^[1-9][0-9]?[.][0-9]{3}[.][0-9]{3}-[0-9kK]$'
+  RUT_PATTERN.compact // '^[1-9][0-9]{6,7}[0-9kK]$'                       123456785
+  RUT_PATTERN.hyphen  // '^[1-9][0-9]{6,7}-[0-9kK]$'                      12345678-5
+  RUT_PATTERN.dotted  // '^[1-9][0-9]?[.][0-9]{3}[.][0-9]{3}-[0-9kK]$'    12.345.678-5
+
+  // zod: the pattern documents the shape, the refinement does the real check
+  const rut = z
+    .string()
+    .trim()
+    .regex(new RegExp(RUT_PATTERN.hyphen))
+    .refine((value) => validate(value))
   ```
 
-  The strings are anchored, flagless and backslash-free, so they paste into
-  JSON, YAML or SQL without escaping, and they carry the no-leading-zero and
-  7–8 digit rules themselves. For inputs up to the 64-char cap,
-  `isRutLike(s) === new RegExp(RUT_PATTERN.any).test(s.trim())`; a test suite
-  pins that equivalence so the export cannot drift from the validator. **These
-  four strings are part of the frozen contract, byte for byte.**
+  - **Safe to paste.** The strings are anchored, flagless and backslash-free, so
+    they need no escaping in JSON, YAML or SQL, and they carry the
+    no-leading-zero and 7–8 digit rules themselves.
+  - **They cannot drift from the validator.** For inputs up to the 64-char cap,
+    `isRutLike(s) === new RegExp(RUT_PATTERN.any).test(s.trim())`, and an
+    accepted input matches exactly one of `compact` / `hyphen` / `dotted`. A
+    test suite pins this.
+  - **Part of the frozen contract.** The four strings are public API, byte for
+    byte.
 
-  A pattern checks shape only, never the verifier digit: pair it with
-  `validate()` wherever code can run. `validate()` itself is untouched and does
-  not use these strings.
+  What a pattern does **not** do:
+
+  - **It checks shape only, never the verifier digit.** About ten in eleven
+    strings that match are not real RUTs, so always run `validate()` wherever
+    code can run.
+  - **`any` and `compact` match any 9-digit number**, a phone number included.
+    Prefer `hyphen` or `dotted` in API schemas.
+  - **Other engines read anchors differently.** In Python use `re.fullmatch`
+    (with `re.search`, `$` also matches before a trailing newline; the same goes
+    for Perl), and in Ruby replace `^`/`$` with `\A`/`\z`, because there they
+    match at every line.
+
 ### Changed
 
 - **Docs: the 7–8 digit body range is stated as part of the frozen contract.**
@@ -46,15 +86,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   deliberately out of scope. No behavior change: this documents what the
   library already does.
 
+### Unchanged
+
+- **Every existing function.** `validate()`, `isValidRut()`, `isRutLike()`,
+  `format()`, `clean()` and the rest behave exactly as in `5.0.1`. `validate()`
+  does not use the exported strings.
+- **The body floor stays at 7 digits.** No option to accept shorter bodies was
+  added: `validate()` remains flag-free except `strict`.
+- **What you ship if you don't use it.** A bundle that imports only `validate`
+  or `format` is byte-for-byte the same size as before. Importing everything
+  adds about 85 bytes gzipped.
+
 ### Internal
 
-- **Contract tests pin the body range.** The existing "too short" cases also
-  carried a wrong verifier, so nothing in the unit suites proved that
+- **`RUT_PATTERN` equivalence suite** (40 tests): the exact strings, an
+  exhaustive check of every string up to 9 characters over a reduced alphabet
+  (2.4 million), a property test over mutated RUTs, and the documented limits.
+  It fails if either the patterns or the validator change on their own.
+- **Contract tests pin the body range** (25 tests). The existing "too short"
+  cases also carried a wrong verifier, so nothing in the unit suites proved that
   `validate()`, `isRutLike()`, `isValidRut()` or `calculateVerifier()` reject a
-  body *for being too short*. 25 new tests use inputs with a correct Modulo 11
-  digit below the floor (`999999-K`, `999.999-K`, `100000-4`, `1000-6`, `1-9`)
-  and check the exact boundaries (`999999` / `1000000` / `99999999` /
-  `100000000`). Test suite: **613 tests** across 17 suites.
+  body *for being too short*. The new cases use a correct Modulo 11 digit below
+  the floor (`999999-K`, `999.999-K`, `100000-4`, `1000-6`, `1-9`) and check
+  the exact boundaries (`999999` / `1000000` / `99999999` / `100000000`).
+- Test suite: **613 tests** across 17 suites.
 
 ## [5.0.1] - 2026-11-06
 
@@ -647,7 +702,7 @@ below cover the cases that do need attention:
 > Interim publishes `1.1.0`, `1.3.0`, and `1.3.1` (Apr–May 2024) were
 > incremental steps between the entries above and are not detailed separately.
 
-[Unreleased]: https://github.com/arrowsw/rut.ts/compare/v5.0.1...HEAD
+[5.1.0]: https://github.com/arrowsw/rut.ts/releases/tag/v5.1.0
 [5.0.1]: https://github.com/arrowsw/rut.ts/releases/tag/v5.0.1
 [5.0.0]: https://github.com/arrowsw/rut.ts/releases/tag/v5.0.0
 [4.1.0]: https://github.com/arrowsw/rut.ts/releases/tag/v4.1.0
