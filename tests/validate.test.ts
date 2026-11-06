@@ -94,6 +94,31 @@ describe('validate', () => {
       expect(validate(rut)).toBe(false)
     })
 
+    // The 7-digit body floor is part of the frozen contract, independent of the
+    // verifier. Every input below carries the CORRECT Modulo 11 digit for its
+    // body, so only the body-length rule can reject it — unlike the
+    // out-of-range cases above, which also have a wrong verifier and would
+    // still be rejected if the floor were lowered.
+    test.each([
+      ['999999-K', '6-digit body, compact + hyphen'],
+      ['999.999-K', '6-digit body, dotted'],
+      ['999999K', '6-digit body, compact'],
+      ['100000-4', 'smallest 6-digit body'],
+      ['1000-6', '4-digit body'],
+      ['1-9', '1-digit body'],
+    ])('rejects a body shorter than 7 digits even with a correct verifier: %p (%s)', (rut) => {
+      expect(validate(rut)).toBe(false)
+      expect(validate(rut, { strict: true })).toBe(false)
+    })
+
+    test('the accepted body range is exactly 1.000.000 – 99.999.999', () => {
+      // Each verifier is correct for its body: only the range decides.
+      expect(validate('999999-K')).toBe(false) // one below the floor
+      expect(validate('1000000-9')).toBe(true) // the floor
+      expect(validate('99999999-9')).toBe(true) // the ceiling
+      expect(validate('100000000-7')).toBe(false) // one above the ceiling
+    })
+
     // Leading-zero padding is non-canonical (v5 breaking change). A real RUT
     // body never carries leading zeros, and padding forms an *unbounded* family
     // of strings for the same RUT — so `validate`/`isValidRut`/`isRutLike`
@@ -253,6 +278,25 @@ describe('isRutLike', () => {
     ['01234567-4', 'single leading zero on a 7-digit body (v5)'],
   ])('returns false for shape-invalid input: %p (%s)', (rut) => {
     expect(isRutLike(rut)).toBe(false)
+  })
+
+  // Body length is part of the shape: 7 or 8 digits, nothing else. The short
+  // inputs carry a correct verifier on purpose (see the validate suite).
+  test.each([
+    ['999999-K', '6-digit body, compact + hyphen'],
+    ['999.999-K', '6-digit body, dotted'],
+    ['999999K', '6-digit body, compact'],
+    ['100000-4', 'smallest 6-digit body'],
+    ['1-9', '1-digit body'],
+    ['100000000-7', '9-digit body, compact + hyphen'],
+    ['123.456.789-5', '9-digit body, dotted'],
+  ])('returns false for a body outside 7–8 digits: %p (%s)', (rut) => {
+    expect(isRutLike(rut)).toBe(false)
+  })
+
+  test('accepts the exact body-length boundaries', () => {
+    expect(isRutLike('1000000-9')).toBe(true) // smallest 7-digit body
+    expect(isRutLike('99999999-9')).toBe(true) // largest 8-digit body
   })
 
   test.each([
