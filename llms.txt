@@ -36,6 +36,7 @@ Key technical details:
 - [isValidRut()](https://rut.arrowsw.com/documentation/features/is-valid-rut): Type guard that narrows a value to the branded `Rut` type when valid (supports strict mode)
 - [mask()](https://rut.arrowsw.com/documentation/features/mask): Mask a RUT for safe logging/display, keeping only the leading group and verifier (`12.345.678-5` → `12.***.***-5`)
 - [equals()](https://rut.arrowsw.com/documentation/features/equals): Answer "same RUT?" across shapes — normalizes both arguments and, by default, requires the shared value to pass Modulo 11 (`{ requireValid: false }` gives the pure shape comparison)
+- [RUT_PATTERN](https://github.com/arrowsw/rut.ts/blob/canary/README.md): The accepted shapes as anchored, flagless, backslash-free regex strings (`any`, `compact`, `hyphen`, `dotted`) for JSON Schema / OpenAPI `pattern`, zod `regex` and database `CHECK` constraints. Shape only — it never proves the verifier digit, so pair it with `validate()`; prefer `hyphen`/`dotted` in API schemas because `any`/`compact` match any 9-digit number. `isRutLike(s) === new RegExp(RUT_PATTERN.any).test(s.trim())` for inputs up to 64 chars
 - [InvalidRutError](https://github.com/arrowsw/rut.ts/blob/canary/README.md): Typed error (class with `code: 'INVALID_RUT'`) thrown by the safe helpers; catch it instead of matching the message text
 
 ## Practical Examples
@@ -53,7 +54,7 @@ Key technical details:
 
 ## Optional
 
-- [Testing Guide](https://rut.arrowsw.com/documentation/testing): Information about the test suite with 548 tests (including property-based coherence laws via fast-check and type-level tests via expect-type) covering all edge cases, plus a seeded differential harness against frozen baselines (validate + equals) and periodic Stryker mutation testing (94% on the hot path)
+- [Testing Guide](https://rut.arrowsw.com/documentation/testing): Information about the test suite with 588 tests (including property-based coherence laws via fast-check and type-level tests via expect-type) covering all edge cases, plus a seeded differential harness against frozen baselines (validate + equals) and periodic Stryker mutation testing (94% on the hot path)
 - [Contributing Guide](https://rut.arrowsw.com/documentation/contributing): How to contribute to the project, development setup, and coding standards
 - [GitHub Issues](https://github.com/arrowsw/rut.ts/issues): Report bugs, request features, or ask questions
 - [Package Size Analysis](https://pkg-size.dev/rut.ts): Detailed breakdown of package size and bundle analysis

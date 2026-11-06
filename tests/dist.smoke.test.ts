@@ -46,6 +46,9 @@ const EXPECTED_NAMES = [
   'InvalidRutError',
 ] as const
 
+// The one export that is not a function: a plain object of pattern strings.
+const PATTERN_KEYS = ['any', 'compact', 'dotted', 'hyphen']
+
 const distExists = existsSync(cjsEntry) && existsSync(esmEntry)
 const guarded = distExists ? describe : describe.skip
 
@@ -62,6 +65,9 @@ guarded('dist smoke (dual ESM + CJS package)', () => {
     expect((cjs.format as (s: string) => string)('123456785')).toBe('12.345.678-5')
     // The 5.0.0 equals default: wrong-verifier pairs are no longer "the same RUT".
     expect((cjs.equals as (a: string, b: string) => boolean)('12345678-9', '12345678-9')).toBe(false)
+    const patterns = cjs.RUT_PATTERN as Record<string, string>
+    expect(Object.keys(patterns).sort()).toEqual(PATTERN_KEYS)
+    expect(new RegExp(patterns.hyphen).test('12345678-5')).toBe(true)
   })
 
   test('CJS subpackage is marked { "type": "commonjs" } (afterbuild step)', () => {
@@ -80,7 +86,9 @@ guarded('dist smoke (dual ESM + CJS package)', () => {
           const names = Object.keys(mod).sort();
           const validateOk = typeof mod.validate === 'function' && mod.validate('12.345.678-5') === true;
           const calcOk = typeof mod.calculateVerifier === 'function' && mod.calculateVerifier('12345678') === '5';
-          process.stdout.write(JSON.stringify({ names, validateOk, calcOk }));
+          const patternKeys = Object.keys(mod.RUT_PATTERN ?? {}).sort();
+          const patternOk = new RegExp(mod.RUT_PATTERN?.hyphen ?? '$^').test('12345678-5');
+          process.stdout.write(JSON.stringify({ names, validateOk, calcOk, patternKeys, patternOk }));
         },
         (err) => {
           process.stderr.write(String(err));
@@ -89,12 +97,21 @@ guarded('dist smoke (dual ESM + CJS package)', () => {
       );
     `
     const stdout = execFileSync(process.execPath, ['--input-type=module', '-e', loaderScript], { encoding: 'utf8' })
-    const result = JSON.parse(stdout) as { names: string[]; validateOk: boolean; calcOk: boolean }
+    const result = JSON.parse(stdout) as {
+      names: string[]
+      validateOk: boolean
+      calcOk: boolean
+      patternKeys: string[]
+      patternOk: boolean
+    }
     for (const name of EXPECTED_NAMES) {
       expect(result.names).toContain(name)
     }
     expect(result.validateOk).toBe(true)
     expect(result.calcOk).toBe(true)
+    expect(result.names).toContain('RUT_PATTERN')
+    expect(result.patternKeys).toEqual(PATTERN_KEYS)
+    expect(result.patternOk).toBe(true)
   })
 
   test('CJS and ESM expose the same set of public names', () => {

@@ -13,6 +13,7 @@ import {
   isRutLike,
   isValidRut,
   mask,
+  RUT_PATTERN,
   validate,
 } from '../src'
 import type {
@@ -130,6 +131,15 @@ const _typecheck = () => {
   expectTypeOf<ValidateOptions>().toMatchObjectType<{ strict?: boolean }>()
   expectTypeOf<SafeOptions>().toMatchObjectType<{ throwOnError?: boolean }>()
   expectTypeOf<DecomposedRut>().toMatchObjectType<{ body: string; verifier: VerifierDigit }>()
+
+  // ── RUT_PATTERN is a readonly record of string literals ────────────────
+  expectTypeOf(RUT_PATTERN).toEqualTypeOf<{
+    readonly any: '^([1-9][0-9]{6,7}-?[0-9kK]|[1-9][0-9]?[.][0-9]{3}[.][0-9]{3}-[0-9kK])$'
+    readonly compact: '^[1-9][0-9]{6,7}[0-9kK]$'
+    readonly hyphen: '^[1-9][0-9]{6,7}-[0-9kK]$'
+    readonly dotted: '^[1-9][0-9]?[.][0-9]{3}[.][0-9]{3}-[0-9kK]$'
+  }>()
+  expectTypeOf(RUT_PATTERN.any).toExtend<string>()
 
   // ── VerifierDigit is the closed union ──────────────────────────────────
   expectTypeOf<VerifierDigit>().toEqualTypeOf<'0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | 'K'>()

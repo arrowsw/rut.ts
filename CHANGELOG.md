@@ -10,6 +10,33 @@ metadata**: they are accurate but summarized, not exhaustive.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`RUT_PATTERN`** — the shapes `validate()` accepts, exported as plain
+  regular-expression strings for the places where code cannot run: a JSON
+  Schema or OpenAPI `pattern`, a zod/valibot `regex`, a database `CHECK`
+  constraint.
+
+  ```ts
+  RUT_PATTERN.any     // '^([1-9][0-9]{6,7}-?[0-9kK]|[1-9][0-9]?[.][0-9]{3}[.][0-9]{3}-[0-9kK])$'
+  RUT_PATTERN.compact // '^[1-9][0-9]{6,7}[0-9kK]$'
+  RUT_PATTERN.hyphen  // '^[1-9][0-9]{6,7}-[0-9kK]$'
+  RUT_PATTERN.dotted  // '^[1-9][0-9]?[.][0-9]{3}[.][0-9]{3}-[0-9kK]$'
+  ```
+
+  The strings are anchored, flagless and backslash-free, so they paste into
+  JSON, YAML or SQL without escaping, and they carry the no-leading-zero and
+  7–8 digit rules themselves. For inputs up to the 64-char cap,
+  `isRutLike(s) === new RegExp(RUT_PATTERN.any).test(s.trim())`; a test suite
+  pins that equivalence so the export cannot drift from the validator. **These
+  four strings are part of the frozen contract, byte for byte.**
+
+  A pattern checks shape only, never the verifier digit: pair it with
+  `validate()` wherever code can run. `validate()` itself is untouched and does
+  not use these strings.
+
 ## [5.0.1] - 2026-11-06
 
 A **patch** release that fixes format-as-you-type. `format(input, { incremental:
@@ -601,6 +628,7 @@ below cover the cases that do need attention:
 > Interim publishes `1.1.0`, `1.3.0`, and `1.3.1` (Apr–May 2024) were
 > incremental steps between the entries above and are not detailed separately.
 
+[Unreleased]: https://github.com/arrowsw/rut.ts/compare/v5.0.1...HEAD
 [5.0.1]: https://github.com/arrowsw/rut.ts/releases/tag/v5.0.1
 [5.0.0]: https://github.com/arrowsw/rut.ts/releases/tag/v5.0.0
 [4.1.0]: https://github.com/arrowsw/rut.ts/releases/tag/v4.1.0
