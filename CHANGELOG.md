@@ -36,6 +36,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   A pattern checks shape only, never the verifier digit: pair it with
   `validate()` wherever code can run. `validate()` itself is untouched and does
   not use these strings.
+### Changed
+
+- **Docs: the 7–8 digit body range is stated as part of the frozen contract.**
+  The README and `llms.txt` now say explicitly that the body must be
+  `1.000.000`–`99.999.999`, and that a shorter body is rejected even when its
+  verifier is correct (`validate('999999-K')` → `false`,
+  `calculateVerifier('999999')` throws). Historical RUNs below one million are
+  deliberately out of scope. No behavior change: this documents what the
+  library already does.
+
+### Internal
+
+- **Contract tests pin the body range.** The existing "too short" cases also
+  carried a wrong verifier, so nothing in the unit suites proved that
+  `validate()`, `isRutLike()`, `isValidRut()` or `calculateVerifier()` reject a
+  body *for being too short*. 25 new tests use inputs with a correct Modulo 11
+  digit below the floor (`999999-K`, `999.999-K`, `100000-4`, `1000-6`, `1-9`)
+  and check the exact boundaries (`999999` / `1000000` / `99999999` /
+  `100000000`). Test suite: **613 tests** across 17 suites.
 
 ## [5.0.1] - 2026-11-06
 

@@ -53,6 +53,21 @@ describe('calculateVerifier', () => {
       expect(() => calculateVerifier('0000000')).toThrow('Invalid RUT input')
       expect(() => calculateVerifier('000000')).toThrow('Invalid RUT input')
     })
+
+    // Modulo 11 is well defined for any digit string (999999 → K, 1000 → 6),
+    // but the supported body range is 7–8 digits: shorter bodies are refused
+    // rather than computed.
+    test.each([['999999'], ['100000'], ['1000'], ['1']])('throws for a body shorter than 7 digits: %p', (body) => {
+      expect(() => calculateVerifier(body)).toThrow('Invalid RUT input')
+      expect(calculateVerifier(body, { throwOnError: false })).toBeNull()
+    })
+
+    test('the accepted body range is exactly 1000000 – 99999999', () => {
+      expect(() => calculateVerifier('999999')).toThrow('Invalid RUT input') // one below the floor
+      expect(calculateVerifier('1000000')).toBe('9') // the floor
+      expect(calculateVerifier('99999999')).toBe('9') // the ceiling
+      expect(() => calculateVerifier('100000000')).toThrow('Invalid RUT input') // one above the ceiling
+    })
   })
 
   describe('safe mode (throwOnError: false)', () => {

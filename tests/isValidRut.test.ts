@@ -20,6 +20,16 @@ describe('isValidRut', () => {
     expect(isValidRut(rut)).toBe(false)
   })
 
+  // A body shorter than 7 digits is never branded as a `Rut`, even when its
+  // Modulo 11 digit is correct (it is, for every input here).
+  test.each([['999999-K'], ['999.999-K'], ['999999K'], ['100000-4'], ['1-9']])(
+    'returns false for a body shorter than 7 digits: %p',
+    (rut) => {
+      expect(isValidRut(rut)).toBe(false)
+      expect(isValidRut(rut, { strict: true })).toBe(false)
+    },
+  )
+
   test.each([[123456785], [null], [undefined], [{}]])('returns false for non-string input: %p', (value) => {
     expect(isValidRut(value as unknown)).toBe(false)
   })
