@@ -18,7 +18,7 @@ correctness contract you can rely on in production.
 - 🪶 **Tiny & zero-dependency** — tree-shakeable ESM, ships only what you import.
 - 🔒 **Hardened by default** — bounded parsing, strict mode, generic errors. No ID values leak into logs or traces.
 - 🧠 **Fully typed** — first-class TypeScript types, no `@types` package needed.
-- 🌐 **Universal** — runs in Node (>= 20), the browser, Deno and Bun.
+- 🌐 **Universal** — runs in Node (>= 22.12), the browser, Deno and Bun, through `import` or `require()`.
 - ✅ **Battle-tested** — a differential harness guards every release against regressions.
 
 ## Installation
@@ -27,6 +27,51 @@ correctness contract you can rely on in production.
 npm install rut.ts
 # or: bun add rut.ts · pnpm add rut.ts · yarn add rut.ts
 ```
+
+`rut.ts` is a single ES module. `import` it anywhere. In CommonJS code,
+`require('rut.ts')` loads that same module on Node 22.12 and later, with no
+flag, and in Bun.
+
+**Runtime support.** Tested on the Node LTS lines in support (today 22, 24 and
+26), Deno and Bun. `engines.node` is `>=22.12.0`, the first 22.x release that
+loads ES modules from `require()` without a flag, and it is not raised when an
+LTS line reaches end-of-life: that line leaves the CI matrix, which is not a
+breaking change.
+
+<details>
+<summary><strong>Testing with Jest in CommonJS mode</strong></summary>
+
+<br>
+
+Jest's default setup runs tests as CommonJS and does not transform
+`node_modules`, so it cannot load an ES module from there and fails with
+`Must use import to load ES Module` (as with any ESM-only package). Vitest needs
+no configuration. With Jest, pick one:
+
+- **Let Jest transform `rut.ts`.** Works with Jest 29 and 30 on any supported
+  Node line:
+
+  ```js
+  // jest.config.js
+  module.exports = {
+    // Matches node_modules/rut.ts/ (npm, yarn) and node_modules/.pnpm/rut.ts@…/ (pnpm)
+    transformIgnorePatterns: ['/node_modules/(?!(\\.pnpm/)?rut\\.ts[/@])'],
+    // ts-jest: hand it .js files too. With babel-jest (Jest's default),
+    // drop this line and configure @babel/preset-env instead.
+    transform: { '^.+\\.[tj]s$': ['ts-jest', { tsconfig: { allowJs: true } }] },
+  }
+  ```
+
+  The shorter `'/node_modules/(?!rut\\.ts/)'` fails under pnpm, where the real
+  path starts with `node_modules/.pnpm/`.
+- **Jest ≥ 30.4 on Node ≥ 24.9:**
+  `node --experimental-vm-modules node_modules/jest/bin/jest.js`. It does not
+  work on Node 22.
+- **React Native and Expo:** their Jest preset already sets
+  `transformIgnorePatterns` to a list of packages to transform. Add `rut\\.ts`
+  to that list.
+
+</details>
 
 ## Quick start
 
@@ -91,12 +136,12 @@ generate({ bodyLength: 7, format: 'hyphen' }) // '7788862-4'
 generate({ count: 3 }) // ['…', '…', '…']
 ```
 
-Both `err instanceof InvalidRutError` and `err.code === 'INVALID_RUT'` also
-match an error thrown by another copy of `rut.ts` in the same process: the ESM
-build next to the CommonJS one (your app `import`s it while a dependency
-`require()`s it), another installed version, or another realm (an iframe,
-`vm`). If the other copy may be an older `rut.ts`, check `err.code`: it works
-with every version.
+`import` and `require()` load the same module, so one installed version holds
+one `InvalidRutError` class. Both `err instanceof InvalidRutError` and
+`err.code === 'INVALID_RUT'` also match an error thrown by another copy of
+`rut.ts` in the same process: another installed version (one a dependency pulls
+in, say) or another realm (an iframe, `vm`). If the other copy may be an older
+`rut.ts`, check `err.code`: it works with every version.
 
 > 📚 Full guides and live examples: **[rut.arrowsw.com](https://rut.arrowsw.com/)**
 
@@ -104,7 +149,7 @@ with every version.
 
 - **Validation** — verifier check with bounded input parsing and an optional `strict` mode that rejects placeholder/repeated-digit RUTs.
 - **Branded types** — `isValidRut()` (type guard) narrows input to a branded `Rut`, so "this string was validated" flows through the type system.
-- **Typed errors** — `InvalidRutError` (with a stable `code`) instead of message-matching; `instanceof` and `code` both hold across the ESM and CommonJS builds.
+- **Typed errors** — `InvalidRutError` (with a stable `code`) instead of message-matching; `instanceof` and `code` both hold across copies of the library (`code` with every version).
 - **Formatting** — standardized output, with or without dots.
 - **Incremental formatting** — progressive formatting as the user types, ideal for form inputs.
 - **Masking** — `mask()` produces `12.***.***-5` for safe logging/display.
@@ -318,9 +363,11 @@ import type {
 
 ## Upgrading
 
-The `validate()` contract is frozen and no further breaking changes are planned.
-Release notes and migration notes for every version live in the
-[**CHANGELOG**](./CHANGELOG.md).
+The API is frozen: the `validate()` contract, the `throwOnError` defaults and
+every signature stay as they are, and new capabilities arrive as additions in
+minor releases. A major release can still change the packaging (the module
+format, the `engines` floor). Release notes and migration notes for every
+version live in the [**CHANGELOG**](./CHANGELOG.md).
 
 ## Contributing
 

@@ -10,6 +10,211 @@ metadata**: they are accurate but summarized, not exhaustive.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+A **packaging and runtime-support major; zero API changes.** `rut.ts` now ships
+one ES module and no CommonJS build. `import` works everywhere it did before,
+and `require('rut.ts')` keeps working on Node 22.12 and later, which load ES
+modules from `require()` without a flag. Every function, signature, default and
+error is exactly as in `5.1.1`: `src/index.ts` is unchanged, and the shipped
+`dist/esm` files are byte-for-byte the ones `5.1.1` published.
+
+### The 5.0.0 API stability commitment
+
+`5.0.0` made this promise:
+
+> **This is the release after which the contract freezes.** After three majors
+> in about a year, no further breaking changes are planned: the `validate()`
+> acceptance contract (three canonical shapes, no leading zeros, 64-char cap) is
+> final, and the `throwOnError: true` defaults of the safe helpers **will not
+> change until a hypothetical v6** — which is not planned. Any new capability
+> will arrive as an addition in a minor release, never as a mutation of existing
+> behavior.
+
+This release breaks the first half of that promise. It is a breaking change,
+it is the v6 that was not planned, and it is the fourth major since January
+2026 (`3.0.0` in January, `4.0.0` in May, `5.0.0` in July). The API half
+holds: the `validate()` contract, the `throwOnError: true` defaults and every
+other signature, default and error are unchanged, and new capabilities still
+arrive as additions in minor releases. What changed is the support policy,
+below. Changing how the package loads still needs a major under semver, so
+this is one.
+
+### Why
+
+`rut.ts` supports the Node LTS lines still in support (active or maintenance:
+today 22, 24 and 26), browsers, Bun and Deno. Node 20 reached end-of-life on
+2026-04-30, and every runtime on that list loads ES modules natively, from
+`require()` too on Node 22.12+. The CommonJS copy only served runtimes outside
+that list, and it doubled the build: a second `tsc` pass, a
+`{"type":"commonjs"}` marker, a second `.d.ts`, and smoke tests to keep the two
+in sync. One build is simpler to ship and to check.
+
+The cost falls on Jest in its default CommonJS mode, which cannot load an ES
+module from `node_modules` on its own (see the migration notes). That is the
+main reason to stay on `5.x` for a while, and why `5.x` keeps receiving fixes.
+
+### Do I need to change anything?
+
+**For most projects, no.** Bundlers (Vite, webpack, esbuild, Rollup, Next.js,
+…), Node ESM, Bun, Deno and browsers already loaded the ESM build, and they get
+the same file. `require('rut.ts')` on Node 22.12+ keeps working and returns the
+same 14 exports. You need to act only if:
+
+1. you run **Jest in its default CommonJS mode**, React Native and Expo
+   projects included,
+2. you run **Node older than 22.12**, or
+3. you type-check a CommonJS project with TypeScript's **`module: node16`** or
+   **`node18`**.
+
+If none of the fixes below fit, stay on `rut.ts@5`: the `5.x` line gets
+security and bug fixes for 6 months after `6.0.0`.
+
+### Migration notes
+
+**Jest in CommonJS mode.** Jest's default setup runs tests as CommonJS and does
+not transform `node_modules`, so loading `rut.ts` fails with `Must use import to
+load ES Module`. Any ESM-only dependency fails the same way. Pick one:
+
+1. **Vitest** needs no configuration.
+2. **Jest ≥ 30.4 on Node ≥ 24.9:** run Jest with Node's VM-modules flag, which
+   lets it load ES modules through `require()`:
+
+   ```sh
+   node --experimental-vm-modules node_modules/jest/bin/jest.js
+   ```
+
+   On Node 22 it still fails with the same error; use option 3 there.
+3. **Let Jest transform `rut.ts`** (Jest 29 or 30, any supported Node line).
+   Take `rut.ts` out of `transformIgnorePatterns`, and use a transform that
+   handles `.js`:
+
+   ```js
+   // jest.config.js
+   module.exports = {
+     // Matches node_modules/rut.ts/ (npm, yarn) and node_modules/.pnpm/rut.ts@…/ (pnpm)
+     transformIgnorePatterns: ['/node_modules/(?!(\\.pnpm/)?rut\\.ts[/@])'],
+     // ts-jest: hand it .js files too
+     transform: { '^.+\\.[tj]s$': ['ts-jest', { tsconfig: { allowJs: true } }] },
+   }
+   ```
+
+   With babel-jest (Jest's default transform), drop the `transform` line and
+   configure `@babel/preset-env`, for example in `babel.config.json`:
+   `{ "presets": [["@babel/preset-env", { "targets": { "node": "current" } }]] }`.
+
+   The common `'/node_modules/(?!rut\\.ts/)'` works with npm but **not with
+   pnpm**: there the real path is
+   `node_modules/.pnpm/rut.ts@<version>/node_modules/rut.ts/…`, and the first
+   `/node_modules/` is followed by `.pnpm`. If your config already allow-lists
+   other packages, add `rut\\.ts` to that list instead.
+
+**React Native and Expo.** Their default test setup is Jest with babel-jest (the
+React Native template pins Jest 29) and a preset whose `transformIgnorePatterns`
+already allow-lists the packages to transform, so option 2 does not apply. Add
+`rut\\.ts` to the preset's list. Setting the option replaces the preset's
+value, so copy the whole list. With `@react-native/jest-preset`:
+
+```js
+// jest.config.js
+module.exports = {
+  preset: '@react-native/jest-preset',
+  transformIgnorePatterns: ['node_modules/(?!((jest-)?react-native|@react-native(-community)?|rut\\.ts)/)'],
+}
+```
+
+With `jest-expo`, add `rut\\.ts` to the alternatives in the first pattern of its
+list the same way.
+
+**Node older than 22.12.** `engines.node` is now `>=22.12.0`. Node 20 is
+end-of-life and no longer tested; on 20.0–20.18 and 22.0–22.11, `require()` of
+an ES module fails with `ERR_REQUIRE_ESM`. Upgrade Node, or stay on `rut.ts@5`.
+
+**TypeScript.** This affects type-checking only; the runtime is unaffected. In a
+CommonJS-emitting project (no `"type": "module"`), importing `rut.ts` gives:
+
+| `module` | Result |
+| --- | --- |
+| `commonjs` | Fine |
+| `nodenext` | Fine on TypeScript ≥ 5.8 (5.7 reports TS1479) |
+| `node20` | Fine on TypeScript ≥ 5.9, where the option first exists |
+| `node16`, `node18` | TS1479 on every version: switch to `nodenext` or `node20` |
+
+### Changed (Breaking)
+
+- **ESM-only: the CommonJS build is removed.** `dist/cjs` (its `index.min.js`,
+  source map, second `index.d.ts` and `{"type":"commonjs"}` marker) is no longer
+  built or published. `exports["."]` drops its `import`/`require` split and
+  becomes
+  `{ "types": "./dist/esm/index.d.ts", "default": "./dist/esm/index.min.js" }`,
+  and `main` now points at `./dist/esm/index.min.js` (it was the CommonJS
+  file). The ES module sits under `default`, not `import`, on purpose: Node's
+  `require()` never matches an `import` condition, so an `import`-only map would
+  fail with `ERR_PACKAGE_PATH_NOT_EXPORTED`.
+- **`engines.node` is `>=22.12.0`** (was `>=20`): the first 22.x release that
+  loads ES modules from `require()` without a flag.
+
+### Changed
+
+- **The support policy is written down.** CI tests the Node LTS lines in
+  support: the matrix is now `[22, 24, 26]` (20 removed at end-of-life, 26
+  added as Active LTS), next to the Deno and Bun smoke jobs. `engines.node` is a
+  technical floor and is not raised on a calendar: when an LTS line reaches
+  end-of-life it leaves the matrix, and that is not a breaking change.
+- **One `InvalidRutError` class per installed version.** `import` and
+  `require()` now load the same module, so an app that `import`s `rut.ts` while
+  a dependency `require()`s it holds one class, not two. The
+  `Symbol.for('rut.ts/InvalidRutError')` brand from `5.1.1` stays, with the
+  same frozen key, so a `5.x` copy and a `6.x` copy in one process still
+  recognize each other's errors. `err.code === 'INVALID_RUT'` still works with
+  every version.
+
+### Unchanged
+
+- **The API.** `src/index.ts` is untouched. Every function, signature, default
+  (`throwOnError: true`, `requireValid: true`, …) and error, and the
+  `validate()` contract, behave exactly as in `5.1.1`.
+- **The shipped module.** `dist/esm/index.min.js`, its source map and
+  `index.d.ts` are byte-for-byte the files `5.1.1` published, so bundler and ESM
+  consumers get the very same code.
+- **Typings.** The same `index.d.ts`, now the only one. TypeScript's `node10`
+  resolution and Parcel still find the top-level `types`, `module` and `main`.
+- **Publishing.** Tag-triggered, tokenless Trusted Publishing with provenance,
+  as before.
+
+### 5.x maintenance
+
+A `5.x` branch, cut from the `5.1.1` release commit, gets security and bug
+fixes for **6 months after `6.0.0`**, and `rut.ts@5` stays installable.
+
+### Internal
+
+- **Build:** one `tsc` pass plus terser. The `build:esm` and `build:cjs` scripts
+  are gone, and `scripts/postbuild.mjs` handles `dist/esm` only. It also deletes
+  a `dist/cjs` left behind by an older local build.
+- **Tarball:** `files` lists `dist/esm` explicitly, and the package goes from 12
+  files to 8.
+- **`.size-limit.json`** guards the ESM entry only.
+- **Smoke test** (`tests/dist.smoke.test.ts`), rewritten for one build:
+  `import()` and `require()` of the package by name both expose the same 14
+  names and resolve to the same file; an error obtained through `require()` is
+  `instanceof` the class obtained through `import()`; `dist/cjs` does not
+  exist; the typings are unchanged. Each check runs in a child Node process:
+  Jest runs this repo's tests in CommonJS mode, and inside Jest both `import()`
+  and `createRequire` go through its own module system, which cannot load an ES
+  module. The `require()` check fails on an `import`-only `exports` map
+  (`ERR_PACKAGE_PATH_NOT_EXPORTED`) and on a top-level `await`
+  (`ERR_REQUIRE_ASYNC_MODULE`); both were confirmed by breaking the build on
+  purpose.
+- **Package lint:** `npm run lint:package` runs `publint --strict` and
+  `attw --pack . --profile esm-only` (both pinned devDependencies) in the CI
+  lint job. `5.1.1` passed publint and attw's default profile cleanly. The
+  ESM-only package still passes publint, but attw's default profile now reports
+  `CJSResolvesToESM` on its CommonJS row (`node16` from CJS). That is expected
+  for an ESM-only package, so CI runs the `esm-only` profile, which skips the
+  CommonJS rows.
+- Test suite: **637 tests** across 17 suites.
+
 ## [5.1.1] - 2026-11-07
 
 A **patch** release that fixes one thing: `instanceof InvalidRutError` now
@@ -762,6 +967,7 @@ below cover the cases that do need attention:
 > Interim publishes `1.1.0`, `1.3.0`, and `1.3.1` (Apr–May 2024) were
 > incremental steps between the entries above and are not detailed separately.
 
+[Unreleased]: https://github.com/arrowsw/rut.ts/compare/v5.1.1...canary
 [5.1.1]: https://github.com/arrowsw/rut.ts/releases/tag/v5.1.1
 [5.1.0]: https://github.com/arrowsw/rut.ts/releases/tag/v5.1.0
 [5.0.1]: https://github.com/arrowsw/rut.ts/releases/tag/v5.0.1
