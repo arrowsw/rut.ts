@@ -31,12 +31,41 @@ const INVALID_RUT_MESSAGE = 'Invalid RUT input'
  * Catch it with `instanceof InvalidRutError` or by checking `err.code`
  * (`'INVALID_RUT'`) instead of matching on the message text. The message is the
  * constant `Invalid RUT input`, so no RUT value ever leaks into logs or traces.
+ *
+ * Both checks also hold for an error thrown by another copy of the library in
+ * the same process: the ESM and CommonJS builds loaded side by side, another
+ * installed version, or another realm. `err.code` works with any copy;
+ * `instanceof` works with every copy that includes this same check.
  */
 export class InvalidRutError extends Error {
   readonly code = 'INVALID_RUT' as const
   constructor() {
     super(INVALID_RUT_MESSAGE)
     this.name = 'InvalidRutError'
+    // The brand. Its registry key is FROZEN: every version must use exactly
+    // 'rut.ts/InvalidRutError' (here and in `Symbol.hasInstance`), or copies stop
+    // recognizing each other's errors. Non-enumerable, so JSON, `Object.keys`,
+    // spread and loggers never see it. Set here, not as a `Symbol.for` key on
+    // the prototype: that key would run when the module loads and keep the
+    // class in bundles that never use it.
+    Object.defineProperty(this, Symbol.for('rut.ts/InvalidRutError'), { value: true })
+  }
+
+  // `instanceof` normally compares prototypes, so on its own it is `false` for
+  // an error built by another copy of this class. This keeps that check and
+  // adds the brand, which every copy finds through the global symbol registry.
+  // A subclass gets the plain prototype check only.
+  //
+  // `as symbol` keeps this method out of the emitted `.d.ts`, so the published
+  // types do not change: TypeScript keeps narrowing `instanceof` from the
+  // constructor (subclasses included), and the typings still need no `Symbol`
+  // in the consumer's `lib`.
+  static [Symbol.hasInstance as symbol](value: unknown): boolean {
+    return (
+      Function.prototype[Symbol.hasInstance].call(this, value) ||
+      (this === InvalidRutError &&
+        (value as Record<symbol, unknown> | null | undefined)?.[Symbol.for('rut.ts/InvalidRutError')] === true)
+    )
   }
 }
 

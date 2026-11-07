@@ -121,6 +121,17 @@ const _typecheck = () => {
   expectTypeOf(new InvalidRutError()).toExtend<Error>()
   expectTypeOf(new InvalidRutError().code).toEqualTypeOf<'INVALID_RUT'>()
   expectTypeOf(new InvalidRutError().message).toEqualTypeOf<string>()
+  // instanceof narrows from the constructor, subclasses included: the
+  // cross-copy `Symbol.hasInstance` hook must not turn into a type predicate
+  // that would narrow every subclass check down to `InvalidRutError`.
+  class AppRutError extends InvalidRutError {
+    readonly field = 'rut' as const
+  }
+  const narrow = (caught: unknown) => {
+    if (caught instanceof InvalidRutError) expectTypeOf(caught).toEqualTypeOf<InvalidRutError>()
+    if (caught instanceof AppRutError) expectTypeOf(caught).toEqualTypeOf<AppRutError>()
+  }
+  narrow(new AppRutError())
 
   // ── exported option types stay object-shaped ───────────────────────────
   expectTypeOf<FormatOptions>().toMatchObjectType<{

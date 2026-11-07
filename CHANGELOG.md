@@ -10,6 +10,50 @@ metadata**: they are accurate but summarized, not exhaustive.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`instanceof InvalidRutError` now recognizes an error thrown by another copy
+  of the library.** One process can hold two copies of the class: the ESM and
+  CommonJS builds loaded side by side (an app `import`s `rut.ts` while a
+  dependency `require()`s it, in Node or inside a bundle), two installed
+  versions, or another realm (an iframe, `vm`). `instanceof` compares
+  prototypes, so it answered `false` for the other copy's errors, and a `catch`
+  block that branched on it took the wrong branch without any warning. Every
+  `InvalidRutError` now carries a brand under
+  `Symbol.for('rut.ts/InvalidRutError')`, and the class checks it in
+  `Symbol.hasInstance` on top of the usual prototype check.
+  `err.code === 'INVALID_RUT'` already worked across copies and still does.
+
+  - **It only widens.** Everything that was an `InvalidRutError` still is. The
+    only new `true` answers are for errors from other copies. A plain `Error`,
+    a look-alike with the same `name` and `code`, or a spread copy
+    (`{ ...err }`) is still `false`.
+  - **Nothing else you can see changes.** The brand is non-enumerable, so
+    `JSON.stringify`, `Object.keys`, spread and loggers see the same `code` and
+    `name` as before. The published `.d.ts` files are unchanged: TypeScript
+    narrows `instanceof` exactly as before, subclasses included. A subclass
+    keeps the plain prototype check.
+  - **Both copies need the fix.** An error from a copy without the brand (any
+    earlier release) is still not `instanceof` across copies. `err.code` is the
+    check that works with every version.
+  - **The key is part of the frozen contract.** `'rut.ts/InvalidRutError'` will
+    not change, so future versions keep recognizing each other's errors.
+  - **It is not a security check.** Anyone can set the brand, just as anyone
+    can already call `Object.create(InvalidRutError.prototype)`.
+
+### Internal
+
+- **Cross-copy tests** (23 in `tests/InvalidRutError.test.ts`): a second,
+  isolated copy of the library in both directions, another realm, look-alikes
+  that must stay `false`, the brand's key and descriptor, and subclasses.
+- **Dual-build smoke test.** In a real Node process, an error thrown by the
+  CommonJS build is `instanceof` the ESM class and vice versa, and the
+  published typings stay unchanged.
+- **Type-level test**: `instanceof` still narrows a subclass to the subclass.
+- Test suite: **638 tests** across 17 suites.
+
 ## [5.1.0] - 2026-11-06
 
 A **feature** release with one addition: `RUT_PATTERN`, the shapes `validate()`

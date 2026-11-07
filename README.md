@@ -91,13 +91,20 @@ generate({ bodyLength: 7, format: 'hyphen' }) // '7788862-4'
 generate({ count: 3 }) // ['…', '…', '…']
 ```
 
+Both `err instanceof InvalidRutError` and `err.code === 'INVALID_RUT'` also
+match an error thrown by another copy of `rut.ts` in the same process: the ESM
+build next to the CommonJS one (your app `import`s it while a dependency
+`require()`s it), another installed version, or another realm (an iframe,
+`vm`). If the other copy may be an older `rut.ts`, check `err.code`: it works
+with every version.
+
 > 📚 Full guides and live examples: **[rut.arrowsw.com](https://rut.arrowsw.com/)**
 
 ## Features
 
 - **Validation** — verifier check with bounded input parsing and an optional `strict` mode that rejects placeholder/repeated-digit RUTs.
 - **Branded types** — `isValidRut()` (type guard) narrows input to a branded `Rut`, so "this string was validated" flows through the type system.
-- **Typed errors** — `InvalidRutError` (with a stable `code`) instead of message-matching.
+- **Typed errors** — `InvalidRutError` (with a stable `code`) instead of message-matching; `instanceof` and `code` both hold across the ESM and CommonJS builds.
 - **Formatting** — standardized output, with or without dots.
 - **Incremental formatting** — progressive formatting as the user types, ideal for form inputs.
 - **Masking** — `mask()` produces `12.***.***-5` for safe logging/display.

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -129,5 +129,53 @@ guarded('dist smoke (dual ESM + CJS package)', () => {
     const stdout = execFileSync(process.execPath, ['--input-type=module', '-e', loaderScript], { encoding: 'utf8' })
     const esmNames = (JSON.parse(stdout) as string[]).filter((n) => (EXPECTED_NAMES as readonly string[]).includes(n))
     expect(esmNames.sort()).toEqual(cjsNames)
+  })
+
+  test('an InvalidRutError thrown by the CJS build is instanceof the ESM class, and vice versa', () => {
+    // The dual package hazard: a process that imports the ESM build while a
+    // dependency require()s the CJS one holds two InvalidRutError classes. Both
+    // builds are loaded in one real Node process, outside Jest's module system.
+    const esmUrl = pathToFileURL(esmEntry).href
+    const loaderScript = `
+      import { createRequire } from 'node:module';
+      import(${JSON.stringify(esmUrl)}).then(
+        (esm) => {
+          const cjs = createRequire(${JSON.stringify(cjsEntry)})(${JSON.stringify(cjsEntry)});
+          const thrown = (fn) => { try { fn() } catch (err) { return err } };
+          const fromCjs = thrown(() => cjs.clean('not-a-rut'));
+          const fromEsm = thrown(() => esm.format('12.345.678-9'));
+          process.stdout.write(JSON.stringify({
+            distinctClasses: esm.InvalidRutError !== cjs.InvalidRutError,
+            cjsErrorIsEsmInstance: fromCjs instanceof esm.InvalidRutError,
+            esmErrorIsCjsInstance: fromEsm instanceof cjs.InvalidRutError,
+            codes: [fromCjs.code, fromEsm.code],
+            plainErrorIsInstance: new Error() instanceof esm.InvalidRutError || new Error() instanceof cjs.InvalidRutError,
+          }));
+        },
+        (err) => {
+          process.stderr.write(String(err));
+          process.exit(1);
+        }
+      );
+    `
+    const stdout = execFileSync(process.execPath, ['--input-type=module', '-e', loaderScript], { encoding: 'utf8' })
+    expect(JSON.parse(stdout)).toEqual({
+      distinctClasses: true,
+      cjsErrorIsEsmInstance: true,
+      esmErrorIsCjsInstance: true,
+      codes: ['INVALID_RUT', 'INVALID_RUT'],
+      plainErrorIsInstance: false,
+    })
+  })
+
+  test('the cross-copy check leaves the published typings unchanged', () => {
+    // `Symbol.hasInstance` is kept out of the .d.ts on purpose: TypeScript keeps
+    // narrowing instanceof from the constructor, and the typings need no
+    // `Symbol` in the consumer's `lib`.
+    for (const dts of [join(distRoot, 'esm', 'index.d.ts'), join(distRoot, 'cjs', 'index.d.ts')]) {
+      const source = readFileSync(dts, 'utf8')
+      expect(source).toContain('export declare class InvalidRutError extends Error {')
+      expect(source).not.toMatch(/hasInstance|Symbol\./)
+    }
   })
 })
