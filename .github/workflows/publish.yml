@@ -44,7 +44,7 @@ jobs:
 
       # `npm publish` runs the package's own gates via lifecycle scripts:
       #   prepublishOnly -> test + prettier + lint
-      #   prepare        -> build (tsc ESM + CJS + terser)
+      #   prepare        -> build (tsc + terser)
       #
       # Auth is tokenless: this repo + `publish.yml` are registered as a Trusted
       # Publisher on the npm package, so npm exchanges the GitHub OIDC token
