@@ -6,12 +6,14 @@ responsible disclosure.
 
 ## Supported versions
 
-Security fixes are provided for the latest minor of the current major line.
+Security fixes are provided for the latest minor of the current major line, and
+for the previous major line during its maintenance window.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 4.x     | :white_check_mark: |
-| < 4.0   | :x:                |
+| Version | Supported                                                          |
+| ------- | ------------------------------------------------------------------ |
+| 6.x     | :white_check_mark:                                                 |
+| 5.x     | :white_check_mark: security and bug fixes until 6 months after 6.0.0 |
+| < 5.0   | :x:                                                                |
 
 ## Reporting a vulnerability
 

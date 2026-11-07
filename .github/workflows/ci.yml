@@ -17,10 +17,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The library uses Web Crypto (`globalThis.crypto`) in generate(),
-        # available since Node 19, with a Math.random fallback for older runtimes.
-        # Test the active LTS lines (24 is LTS since Oct 2025).
-        node: [20, 22, 24]
+        # The Node LTS lines still in support (active or maintenance). This list
+        # is the support policy: add a line when it becomes LTS, drop it when
+        # it reaches end-of-life. Dropping an EOL line is not a breaking change,
+        # and `engines.node` (>=22.12.0, the first 22.x that loads this ESM-only
+        # package through require() without a flag) does not move with it.
+        node: [22, 24, 26]
     steps:
       - uses: actions/checkout@v7
 
@@ -35,7 +37,7 @@ jobs:
       - name: Unit tests
         run: npm test
 
-      - name: Build (tsc ESM + CJS + terser)
+      - name: Build (tsc + terser)
         run: npm run build
 
       # Differential guard: 3.4.0 vs current validate() over a stratified
@@ -146,3 +148,10 @@ jobs:
 
       - name: ESLint (flat config + prettier)
         run: npm run lint
+
+      # publint checks the package.json/exports wiring of the packed tarball.
+      # attw checks the typings per resolution mode; `--profile esm-only`
+      # skips the CommonJS-resolution rows (node10, node16 from CJS), whose
+      # `CJSResolvesToESM` warning is expected for an ESM-only package.
+      - name: Package lint (publint + attw)
+        run: npm run lint:package

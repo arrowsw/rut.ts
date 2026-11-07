@@ -5,27 +5,20 @@
   "description": "Handle chilean RUT values with ease.",
   "author": "arrowsw",
   "sideEffects": false,
-  "main": "./dist/cjs/index.min.js",
+  "main": "./dist/esm/index.min.js",
   "module": "./dist/esm/index.min.js",
   "types": "./dist/esm/index.d.ts",
   "exports": {
     ".": {
-      "import": {
-        "types": "./dist/esm/index.d.ts",
-        "default": "./dist/esm/index.min.js"
-      },
-      "require": {
-        "types": "./dist/cjs/index.d.ts",
-        "default": "./dist/cjs/index.min.js"
-      }
+      "types": "./dist/esm/index.d.ts",
+      "default": "./dist/esm/index.min.js"
     },
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "npm run build:esm && npm run build:cjs && node scripts/postbuild.mjs",
-    "build:esm": "tsc",
-    "build:cjs": "tsc --module commonjs --outDir dist/cjs",
+    "build": "tsc && node scripts/postbuild.mjs",
     "lint": "eslint \"{**/*,*}.{js,ts,jsx,tsx}\"",
+    "lint:package": "publint --strict && attw --pack . --profile esm-only",
     "prettier": "prettier --write \"{src,tests,example/src}/**/*.{js,ts,jsx,tsx}\"",
     "test": "jest --config jest.config.cjs",
     "test:differential": "RUN_DIFFERENTIAL=1 jest --config jest.config.cjs tests/differential.test.ts",
@@ -37,6 +30,7 @@
   },
   "license": "MIT",
   "devDependencies": {
+    "@arethetypeswrong/cli": "0.18.5",
     "@size-limit/file": "12.1.0",
     "@stryker-mutator/core": "9.6.1",
     "@stryker-mutator/jest-runner": "9.6.1",
@@ -48,6 +42,7 @@
     "fast-check": "4.8.0",
     "jest": "30.2.0",
     "prettier": "3.8.1",
+    "publint": "0.3.25",
     "size-limit": "12.1.0",
     "terser": "5.46.0",
     "ts-jest": "29.4.6",
@@ -55,7 +50,7 @@
     "typescript-eslint": "8.53.1"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12.0"
   },
   "homepage": "https://rut.arrowsw.com",
   "keywords": [
@@ -85,10 +80,9 @@
     "url": "https://github.com/arrowsw/rut.ts/issues"
   },
   "files": [
-    "dist/**/*.min.js",
-    "dist/**/*.min.js.map",
-    "dist/**/*.d.ts",
-    "dist/cjs/package.json",
+    "dist/esm/*.min.js",
+    "dist/esm/*.min.js.map",
+    "dist/esm/*.d.ts",
     "src/**/*.ts",
     "LICENSE",
     "README.md",
