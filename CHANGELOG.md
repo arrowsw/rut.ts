@@ -10,18 +10,34 @@ metadata**: they are accurate but summarized, not exhaustive.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [5.1.1] - 2026-11-07
+
+A **patch** release that fixes one thing: `instanceof InvalidRutError` now
+recognizes an error thrown by another copy of the library in the same process.
+Nothing else changes at runtime: every function, default and error behaves
+exactly as in `5.1.0`, the published type definitions are unchanged, and the
+Modulo 11 algorithm is **unchanged**.
+
+### Why
+
+One process can hold two copies of the `InvalidRutError` class: the ESM and
+CommonJS builds loaded side by side (an app `import`s `rut.ts` while a
+dependency `require()`s it, in Node or inside a bundle), two installed
+versions, or another realm (an iframe, `vm`). `instanceof` compares prototypes,
+so it answered `false` for the other copy's errors, and a `catch` block that
+branched on it took the wrong branch without any warning.
+
+### Do I need to change anything?
+
+**No.** Upgrade and `instanceof InvalidRutError` keeps working when two copies
+meet. If the other copy may be `5.1.0` or older, check
+`err.code === 'INVALID_RUT'` instead: those releases do not carry the brand,
+and `err.code` works with every version.
 
 ### Fixed
 
 - **`instanceof InvalidRutError` now recognizes an error thrown by another copy
-  of the library.** One process can hold two copies of the class: the ESM and
-  CommonJS builds loaded side by side (an app `import`s `rut.ts` while a
-  dependency `require()`s it, in Node or inside a bundle), two installed
-  versions, or another realm (an iframe, `vm`). `instanceof` compares
-  prototypes, so it answered `false` for the other copy's errors, and a `catch`
-  block that branched on it took the wrong branch without any warning. Every
-  `InvalidRutError` now carries a brand under
+  of the library.** Every `InvalidRutError` now carries a brand under
   `Symbol.for('rut.ts/InvalidRutError')`, and the class checks it in
   `Symbol.hasInstance` on top of the usual prototype check.
   `err.code === 'INVALID_RUT'` already worked across copies and still does.
@@ -746,6 +762,7 @@ below cover the cases that do need attention:
 > Interim publishes `1.1.0`, `1.3.0`, and `1.3.1` (Apr–May 2024) were
 > incremental steps between the entries above and are not detailed separately.
 
+[5.1.1]: https://github.com/arrowsw/rut.ts/releases/tag/v5.1.1
 [5.1.0]: https://github.com/arrowsw/rut.ts/releases/tag/v5.1.0
 [5.0.1]: https://github.com/arrowsw/rut.ts/releases/tag/v5.0.1
 [5.0.0]: https://github.com/arrowsw/rut.ts/releases/tag/v5.0.0
