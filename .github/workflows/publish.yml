@@ -3,35 +3,39 @@ name: Publish
 # Release process: see RELEASING.md. Version bump + CHANGELOG land in a
 # dedicated release PR; pushing the vX.Y.Z tag afterwards triggers this
 # workflow to build, test, and publish.
+#
+# Two jobs, so the publish credential is exposed to as little code as possible:
+#   build   - installs the dev toolchain, builds once, runs every gate and packs
+#             that build into the tarball. Read-only token, no OIDC.
+#   publish - downloads that exact tarball and publishes it. It is the only job
+#             that can get the npm credential (id-token: write), and it runs no
+#             project code and installs no project dependencies.
+#
+# Actions are pinned to full commit SHAs (tag in the comment).
 on:
   push:
     tags: ['v*']
 
 permissions:
   contents: read
-  id-token: write # required for npm provenance (OIDC)
 
 jobs:
-  publish:
-    name: publish to npm (with provenance)
+  build:
+    name: build, test and pack
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Full history, to check below that the tag points at a commit on canary.
+          fetch-depth: 0
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
-          registry-url: 'https://registry.npmjs.org'
-          # No dependency cache when publishing: a poisoned cache could expose the
-          # OIDC publish credential (setup-node's Trusted Publishing guidance).
+          # No dependency cache in the release workflow: a poisoned cache could
+          # change what gets built and published.
           package-manager-cache: false
-
-      # OIDC trusted publishing needs npm >= 11.5.1; Node 22 ships an older npm.
-      - name: Upgrade npm (OIDC trusted publishing support)
-        run: npm install -g npm@latest
-
-      - name: Install dependencies (runs prepare -> build)
-        run: npm ci
 
       # Refuse to publish if the pushed tag (vX.Y.Z) and package.json disagree.
       - name: Verify tag matches package.json version
@@ -42,15 +46,87 @@ jobs:
             exit 1
           fi
 
-      # `npm publish` runs the package's own gates via lifecycle scripts:
-      #   prepublishOnly -> test + prettier + lint
-      #   prepare        -> build (tsc ESM + CJS + terser)
-      #
+      # Refuse to publish a tag on a commit that is not on canary (for example a
+      # tag pushed on an unmerged branch). This catches mistakes; it is not access
+      # control, because whoever pushes the tag also controls this file in the
+      # tagged commit. Access control lives in the repository settings (tag
+      # ruleset, the `npm` environment) and in npm's Trusted Publisher entry.
+      - name: Verify the tagged commit is on canary
+        run: |
+          if ! git merge-base --is-ancestor HEAD origin/canary; then
+            echo "::error::Tag ${GITHUB_REF_NAME} points at a commit that is not on canary"
+            exit 1
+          fi
+
+      - name: Install dependencies (runs prepare -> build)
+        run: npm ci
+
+      # The same gates as `prepublishOnly`. They run here explicitly because the
+      # publish job publishes a packed tarball, which runs no lifecycle scripts.
+      - name: Unit tests
+        run: npm test
+
+      - name: Prettier (check only)
+        run: npm run prettier:check
+
+      - name: Lint
+        run: npm run lint
+
+      # --ignore-scripts keeps `npm pack` from running `prepare` again, so the
+      # tarball holds exactly the build the tests above ran against.
+      - name: Pack the tested build
+        run: |
+          npm pack --ignore-scripts
+          test -f "rut.ts-${GITHUB_REF_NAME#v}.tgz"
+
+      - name: Install the tarball in an empty project and test it
+        run: node scripts/smoke-package.mjs "rut.ts-${GITHUB_REF_NAME#v}.tgz"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: package
+          path: rut.ts-*.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: publish to npm (with provenance)
+    needs: build
+    runs-on: ubuntu-latest
+    # The protection lives in settings, not here: give this environment required
+    # reviewers and a `v*` tag rule in the repository settings, and name it in
+    # npm's Trusted Publisher entry, so no publish happens without approval. Until
+    # then it adds no protection. See RELEASING.md.
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write # required for npm provenance (OIDC)
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: package
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+          # No dependency cache when publishing: a poisoned cache could expose the
+          # OIDC publish credential (setup-node's Trusted Publishing guidance).
+          package-manager-cache: false
+
+      # OIDC trusted publishing needs npm >= 11.5.1; Node 22 ships an older npm.
+      # An exact version, because this job holds the publish credential.
+      - name: Install npm 12.2.1 (OIDC trusted publishing support)
+        run: npm install -g npm@12.2.1
+
       # Auth is tokenless: this repo + `publish.yml` are registered as a Trusted
       # Publisher on the npm package, so npm exchanges the GitHub OIDC token
       # (id-token: write, above) for a short-lived publish credential — no
       # NPM_TOKEN secret exists to leak. Provenance (a signed Sigstore
       # attestation linking this tarball to the source commit and workflow run)
       # is emitted automatically; --provenance keeps it explicit.
+      #
+      # It publishes the tarball the build job tested. --ignore-scripts: nothing
+      # from the package runs here.
       - name: Publish to npm (tokenless OIDC + provenance)
-        run: npm publish --provenance --access public
+        run: npm publish "./rut.ts-${GITHUB_REF_NAME#v}.tgz" --provenance --access public --ignore-scripts

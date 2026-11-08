@@ -61,13 +61,14 @@ format('abc', { throwOnError: false }) // null
 ### Branded types & typed errors
 
 ```typescript
-import { isValidRut, InvalidRutError, mask, equals, generate } from 'rut.ts'
+import { isValidRut, InvalidRutError, mask, equals, generate, clean } from 'rut.ts'
 import type { Rut } from 'rut.ts'
 
 // Type guard — narrows `unknown`/`string` to the branded `Rut`
 function persist(value: string) {
   if (isValidRut(value)) {
     const rut: Rut = value // ✅ the type system knows it was validated
+    db.save(clean(rut)) // store one spelling per RUT ('123456785'), not the raw input
   }
 }
 
@@ -88,7 +89,7 @@ equals('12345678-9', '12345678-9', { requireValid: false }) // true (pure shape 
 generate() // '29.561.896-5'  (8-digit dotted, default)
 generate({ format: 'compact' }) // '233715913'
 generate({ bodyLength: 7, format: 'hyphen' }) // '7788862-4'
-generate({ count: 3 }) // ['…', '…', '…']
+generate({ count: 3 }) // ['…', '…', '…']  (no upper limit: cap a count that comes from user input)
 ```
 
 Both `err instanceof InvalidRutError` and `err.code === 'INVALID_RUT'` also
@@ -107,11 +108,11 @@ with every version.
 - **Typed errors** — `InvalidRutError` (with a stable `code`) instead of message-matching; `instanceof` and `code` both hold across the ESM and CommonJS builds.
 - **Formatting** — standardized output, with or without dots.
 - **Incremental formatting** — progressive formatting as the user types, ideal for form inputs.
-- **Masking** — `mask()` produces `12.***.***-5` for safe logging/display.
+- **Masking** — `mask()` produces `12.***.***-5` for safe logging/display. It is not anonymization: about 90,000 RUTs share each masked value.
 - **Comparison** — `equals()` answers "same RUT?" across different shapes, checking validity by default (`{ requireValid: false }` for pure shape comparison).
 - **Cleaning** — permissively strip extraneous characters and leading zeros.
 - **Decomposition** — split a RUT into its body and verifier digit.
-- **Generation** — cryptographically-backed random valid RUTs, with `bodyLength`, `format` and `count` options.
+- **Generation** — cryptographically-backed random valid RUTs, with `bodyLength`, `format` and `count` options. They cover the real RUT range, so one may belong to a real person: use them as test data.
 - **Calculate verifier** — compute the verifier digit for a given body.
 - **Format detection** — cheap `isRutLike` check without full validation.
 - **Shape patterns** — `RUT_PATTERN` exposes the accepted shapes as regex strings for JSON Schema, OpenAPI, zod and database constraints.
@@ -150,7 +151,11 @@ formatting. That posture is the point of the library:
 ### Accepted input formats (the validation contract)
 
 `validate()` and `isRutLike()` accept **only** these shapes (optionally with
-surrounding whitespace, verifier `k`/`K` case-insensitive):
+surrounding whitespace, verifier `k`/`K` case-insensitive). "Whitespace" means
+whatever JavaScript's `trim()` removes, Unicode spaces included (U+00A0, U+FEFF,
+U+3000…). So one RUT can be written in several accepted ways: to store or
+compare RUTs, use `clean()` output (see the recipe below) or `equals()`, never
+the raw string.
 
 | Shape            | Example                       | Notes                                  |
 | ---------------- | ----------------------------- | -------------------------------------- |
@@ -214,7 +219,7 @@ a looser validator.
 | Question you're asking | Use |
 | --- | --- |
 | "Are these the same RUT?" (shape-agnostic, zero-padding tolerated) | `equals()` |
-| "Is this string written as a valid canonical RUT?" (identity/uniqueness gate) | `validate()` / `isValidRut()` |
+| "Is this string a valid RUT, written in an accepted shape?" (validity gate; to store or deduplicate, key on `clean()` output) | `validate()` / `isValidRut()` |
 
 By default `equals` also checks validity — two strings with a wrong verifier
 are *not* "the same RUT" because they are not RUTs
@@ -290,7 +295,10 @@ rut:
   the 64-char cap. Other engines read anchors differently: in Python use
   `re.fullmatch` (with `re.search`, `$` also matches before a trailing newline;
   the same goes for Perl), and in Ruby replace `^`/`$` with `\A`/`\z`, because
-  there they match at every line.
+  there they match at every line. In Java (`find()`), .NET, PHP/PCRE and MySQL 8
+  (`REGEXP_LIKE`, which uses ICU), `$` also matches before a final line break
+  (in Java and ICU also before U+0085, U+2028 and U+2029), so replace `$` with
+  `\z` there (`\\z` inside a MySQL string literal).
 
 ## TypeScript types
 

@@ -347,5 +347,32 @@ describe('format', () => {
         expect(typeof format(input, { incremental: true, throwOnError: true })).toBe('string')
       }
     })
+
+    test('incremental mode returns "" for a non-string instead of throwing', () => {
+      // Untyped callers only: the signature takes a string.
+      for (const input of [undefined, null, 123456785, {}, []] as unknown as string[]) {
+        expect(format(input, { incremental: true })).toBe('')
+        expect(format(input, { incremental: true, throwOnError: false })).toBe('')
+      }
+    })
+
+    test('only incremental: true turns incremental mode on', () => {
+      // Incremental mode skips the Modulo 11 check, so a truthy stand-in from an
+      // untyped caller (a query string, a config file) must not enable it.
+      for (const flag of ['false', 'true', 1, {}] as unknown as boolean[]) {
+        expect(() => format('12.345.678-4', { incremental: flag })).toThrow('Invalid RUT input')
+        expect(format('123456785', { incremental: flag })).toBe('12.345.678-5')
+      }
+    })
+  })
+
+  describe('empty string', () => {
+    test('gives "" in every mode, without throwing (callers must check for "")', () => {
+      expect(format('')).toBe('')
+      expect(format('', { throwOnError: true })).toBe('')
+      expect(format('', { throwOnError: false })).toBe('')
+      expect(format('', { incremental: true })).toBe('')
+      expect(format('', { dots: false })).toBe('')
+    })
   })
 })

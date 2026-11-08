@@ -61,11 +61,17 @@ require a non-default, clearly-documented permissive helper (`clean()`,
 
 ## Supply chain
 
-Releases are published from CI on a signed tag with
+Releases are published only by CI, from a `vX.Y.Z` tag on `canary`, through
+npm Trusted Publishing (no long-lived npm token exists) and with
 [npm provenance](https://docs.npmjs.com/generating-provenance-statements)
 (a Sigstore attestation linking each tarball to its source commit and build).
-You can verify an installed copy with:
+Release tags are not signed. You can verify an installed copy with:
 
 ```bash
 npm audit signatures
 ```
+
+That confirms the attestation is valid, not where it came from. To check the
+source, open the version on [npmjs.com](https://www.npmjs.com/package/rut.ts):
+its provenance must name the `arrowsw/rut.ts` repository, the
+`.github/workflows/publish.yml` workflow and the matching `refs/tags/vX.Y.Z`.
