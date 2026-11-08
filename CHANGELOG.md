@@ -10,13 +10,14 @@ metadata**: they are accurate but summarized, not exhaustive.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [5.1.2] - 2026-11-08
 
-Security hardening from a review of the library and of the release pipeline.
-No invalid RUT was ever accepted and no input ever leaked into an error; these
-changes close smaller gaps around that. For typed callers that pass plain
-option objects, every function returns exactly what it did in `5.1.1`, and the
-Modulo 11 algorithm is **unchanged**.
+A **patch** release with security hardening from a review of the library and
+of the release pipeline. No invalid RUT was ever accepted and no input ever
+leaked into an error; these changes close smaller gaps around that. For typed
+callers that pass plain option objects, every function returns exactly what it
+did in `5.1.1`, the published type definitions are unchanged, and the Modulo 11
+algorithm is **unchanged**.
 
 ### Do I need to change anything?
 
@@ -832,6 +833,7 @@ below cover the cases that do need attention:
 > Interim publishes `1.1.0`, `1.3.0`, and `1.3.1` (Apr–May 2024) were
 > incremental steps between the entries above and are not detailed separately.
 
+[5.1.2]: https://github.com/arrowsw/rut.ts/releases/tag/v5.1.2
 [5.1.1]: https://github.com/arrowsw/rut.ts/releases/tag/v5.1.1
 [5.1.0]: https://github.com/arrowsw/rut.ts/releases/tag/v5.1.0
 [5.0.1]: https://github.com/arrowsw/rut.ts/releases/tag/v5.0.1
