@@ -22,8 +22,11 @@ algorithm is **unchanged**.
 ### Do I need to change anything?
 
 **No**, unless you pass options through an object that gets them from its
-prototype (a class instance with getters, `Object.create(defaults)`): copy them
-onto a plain object first, as `{ ...options }` does.
+prototype (a class instance with getters, `Object.create(defaults)`). Then copy
+the values onto a plain object first, for example `{ strict: options.strict }`,
+or `{ ...defaults, ...options }` when they come from a `defaults` object. A
+spread of the object alone (`{ ...options }`) is not enough: it copies only the
+object's own properties.
 
 ### Fixed
 
