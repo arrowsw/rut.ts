@@ -10,6 +10,76 @@ metadata**: they are accurate but summarized, not exhaustive.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Security hardening from a review of the library and of the release pipeline.
+No invalid RUT was ever accepted and no input ever leaked into an error; these
+changes close smaller gaps around that. For typed callers that pass plain
+option objects, every function returns exactly what it did in `5.1.1`, and the
+Modulo 11 algorithm is **unchanged**.
+
+### Do I need to change anything?
+
+**No**, unless you pass options through an object that gets them from its
+prototype (a class instance with getters, `Object.create(defaults)`): copy them
+onto a plain object first, as `{ ...options }` does.
+
+### Fixed
+
+- **Options are read only from the object you pass.** An inherited value is
+  ignored. Before, if another bug in an app polluted `Object.prototype` (for
+  example `Object.prototype.requireValid = false`), an options object such as
+  `{}` inherited it: `equals(a, b, {})` stopped checking Modulo 11,
+  `format(x, { dots: false })` stopped throwing on a wrong verifier when
+  `throwOnError: false` was inherited, and `generate({})` returned an array.
+  `validate()` could only get stricter. The library itself has no such bug;
+  this removes the effect of one elsewhere.
+- **Only `incremental: true` turns incremental mode on.** Incremental mode
+  skips the Modulo 11 check, and any truthy value used to turn it on, so an
+  untyped caller passing `{ incremental: 'false' }` (from a query string or a
+  config file) got unchecked output. Other values now take the normal path.
+- **Incremental mode never throws.** `format(x, { incremental: true })` threw
+  when `x` was not a string, despite the documentation. It now returns `''`.
+
+### Documentation
+
+- `validate()`, `isValidRut()`, README and `llms.txt` now say that "surrounding
+  whitespace" means JavaScript `trim()` whitespace, Unicode included, so one
+  RUT has several accepted spellings. The README no longer calls `validate()` a
+  uniqueness gate, and its `persist()` example stores `clean(rut)`.
+- `format('')` returns `''` in every mode, without throwing. This was always
+  the behavior; the JSDoc now says so.
+- `generate()`: `count` has no upper limit (cap user-supplied counts), and
+  generated RUTs may belong to real people. `mask()` is not anonymization.
+- The `RUT_PATTERN` notes now cover Java, .NET, PHP/PCRE and MySQL 8, where `$`
+  also matches before a final line break.
+- `SECURITY.md` no longer says releases come from a signed tag (they do not),
+  and explains how to check where a published version came from.
+  `RELEASING.md` describes the new publish flow and the GitHub and npm settings
+  that control who can publish.
+
+### Internal
+
+- **Publish workflow split in two jobs.** `build` builds once, runs the gates,
+  packs that build and tests the installed tarball, with a read-only token.
+  `publish` (environment `npm`, the only job with `id-token: write`) publishes
+  that exact tarball and runs no project code. Before, everything ran with the
+  publish credential available, and `npm publish` rebuilt the package after the
+  tests had run. The tagged commit must also be on `canary`.
+- `prepublishOnly` runs `prettier --check` instead of `prettier --write`, so the
+  formatting gate can fail and never rewrites shipped `src/` before packing.
+- CI: read-only `GITHUB_TOKEN`, every action pinned to a commit SHA, Deno and
+  Bun pinned to exact versions, no credentials left in the checkout, npm pinned
+  in the publish job. A new `package` job packs the build and tests the tarball
+  on every change, and the lint job also runs the Prettier check.
+- `tests/dist.smoke.test.ts` fails in CI instead of skipping when `dist/` is
+  missing, and checks the security controls (64-char cap, leading-zero
+  rejection, constant error message, inherited options) on both built files.
+- New tests for inherited options, incremental mode and Unicode whitespace.
+- `@eslint/js` and `globals`, which `eslint.config.js` imports, are now declared
+  dev dependencies. `.claude/` is in `.gitignore`.
+- Test suite: **655 tests** across 18 suites.
+
 ## [5.1.1] - 2026-11-07
 
 A **patch** release that fixes one thing: `instanceof InvalidRutError` now

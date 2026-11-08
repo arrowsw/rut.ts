@@ -14,9 +14,10 @@ import { pathToFileURL } from 'node:url'
  * sync. A regression in any of those would not be caught by the source-level
  * jest run, but it WILL be caught here as soon as the smoke fails to import.
  *
- * The test is auto-skipped if `dist/` has not been built (e.g. a fresh clone
- * before `npm run prepare`), so it never blocks contributors who only edit
- * source.
+ * On a contributor's machine the test is skipped if `dist/` has not been built
+ * (e.g. a fresh clone before `npm run prepare`), so it never blocks
+ * contributors who only edit source. In CI (`CI` set) a missing `dist/` fails
+ * instead: otherwise a broken build would pass its own dist checks.
  *
  * Implementation note: the ESM smoke spawns a fresh Node subprocess to load
  * the .esm.min.js file under the real ESM loader. Jest's ts-jest host runs
@@ -50,9 +51,74 @@ const EXPECTED_NAMES = [
 const PATTERN_KEYS = ['any', 'compact', 'dotted', 'hyphen']
 
 const distExists = existsSync(cjsEntry) && existsSync(esmEntry)
-const guarded = distExists ? describe : describe.skip
+const distRequired = Boolean(process.env.CI) && process.env.CI !== 'false'
+const guarded = distExists || distRequired ? describe : describe.skip
+
+// The security controls, checked on the built files rather than on `src/`: a
+// toolchain change (tsc, terser) could drop one without any source test noticing.
+// Runs in a fresh Node process, as ESM or CJS, and prints the results as JSON.
+const securityScript = (load: string): string => `
+  ${load}.then(
+    (m) => {
+      const thrown = (fn) => { try { fn() } catch (err) { return err } };
+      const input = '12.345.678-4';
+      const err = thrown(() => m.format(input));
+      const results = {
+        valid: m.validate('12.345.678-5'),
+        wrongVerifier: m.validate(input),
+        leadingZero: m.validate('012.345.678-5'),
+        atCap: m.validate(' '.repeat(52) + '12.345.678-5'),
+        overCap: m.validate(' '.repeat(53) + '12.345.678-5'),
+        overCapLenient: m.clean('1'.repeat(65), { throwOnError: false }),
+        errorIsTyped: err instanceof m.InvalidRutError && err.code === 'INVALID_RUT',
+        errorMessage: err.message,
+        errorLeaksInput: String(err.stack).includes(input) || JSON.stringify(err).includes(input),
+      };
+      Object.prototype.requireValid = false;
+      Object.prototype.throwOnError = false;
+      Object.prototype.incremental = true;
+      results.inheritedRequireValid = m.equals('12345678-9', '12345678-9', {});
+      results.inheritedThrowOnError = thrown(() => m.format(input, {})) instanceof m.InvalidRutError;
+      process.stdout.write(JSON.stringify(results));
+    },
+    (err) => {
+      process.stderr.write(String(err));
+      process.exit(1);
+    }
+  );
+`
+
+const EXPECTED_SECURITY = {
+  valid: true,
+  wrongVerifier: false,
+  leadingZero: false,
+  atCap: true,
+  overCap: false,
+  overCapLenient: null,
+  errorIsTyped: true,
+  errorMessage: 'Invalid RUT input',
+  errorLeaksInput: false,
+  inheritedRequireValid: false,
+  inheritedThrowOnError: true,
+}
 
 guarded('dist smoke (dual ESM + CJS package)', () => {
+  test('dist/ has been built', () => {
+    expect({ cjsEntry: existsSync(cjsEntry), esmEntry: existsSync(esmEntry) }).toEqual({
+      cjsEntry: true,
+      esmEntry: true,
+    })
+  })
+
+  test.each([
+    ['ESM', `import(${JSON.stringify(pathToFileURL(esmEntry).href)})`],
+    ['CJS', `Promise.resolve().then(() => require(${JSON.stringify(cjsEntry)}))`],
+  ])('the %s build keeps the security controls', (kind, load) => {
+    const args = kind === 'ESM' ? ['--input-type=module', '-e'] : ['-e']
+    const stdout = execFileSync(process.execPath, [...args, securityScript(load)], { encoding: 'utf8' })
+    expect(JSON.parse(stdout)).toEqual(EXPECTED_SECURITY)
+  })
+
   test('CJS entry loads via require() and exposes the full public API', () => {
     // Use createRequire so this works under ts-jest's CJS host regardless of
     // the root package.json `"type": "module"` setting.

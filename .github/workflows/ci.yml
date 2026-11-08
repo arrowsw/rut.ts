@@ -10,6 +10,13 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# CI only reads the repository, so every job gets a read-only token. This also
+# limits what a third-party action (setup-deno, setup-bun) could do with it.
+# Actions are pinned to full commit SHAs (tag in the comment), so a moved tag
+# cannot change the code that runs here.
+permissions:
+  contents: read
+
 jobs:
   test:
     name: test (node ${{ matrix.node }})
@@ -22,9 +29,11 @@ jobs:
         # Test the active LTS lines (24 is LTS since Oct 2025).
         node: [20, 22, 24]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ matrix.node }}
           cache: npm
@@ -47,9 +56,11 @@ jobs:
     name: coverage (threshold guard)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
@@ -66,9 +77,11 @@ jobs:
     name: size-limit (bundle guard)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
@@ -87,9 +100,11 @@ jobs:
     name: smoke (Deno)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
@@ -97,9 +112,9 @@ jobs:
       - name: Install dependencies and build
         run: npm ci
 
-      - uses: denoland/setup-deno@v2
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
-          deno-version: v2.x
+          deno-version: v2.9.8
 
       # Proves the README "runs in Deno" claim: load the real ESM build and
       # validate a RUT (and confirm the restricted shape is rejected).
@@ -111,9 +126,11 @@ jobs:
     name: smoke (Bun)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
@@ -121,22 +138,49 @@ jobs:
       - name: Install dependencies and build
         run: npm ci
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: latest
+          bun-version: 1.4.4
 
       # Proves the README "runs in Bun" claim against the real ESM build.
       - name: Bun imports the ESM build and validates a RUT
         run: |
           bun -e "const m = await import('./dist/esm/index.min.js'); if (m.validate('12.345.678-5') !== true || m.validate('12.345.6785') !== false) { console.error('Bun smoke FAILED'); process.exit(1); } console.log('Bun smoke ok');"
 
+  package:
+    name: package (pack once, test the tarball)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies and build
+        run: npm ci
+
+      # The same steps the publish workflow runs before it publishes, so they are
+      # tested on every change and not only when a release tag is pushed.
+      # --ignore-scripts keeps `npm pack` from running `prepare` (a second build).
+      - name: Pack the build
+        run: npm pack --ignore-scripts
+
+      - name: Install the tarball in an empty project and test it
+        run: node scripts/smoke-package.mjs rut.ts-*.tgz
+
   lint:
     name: lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
@@ -146,3 +190,6 @@ jobs:
 
       - name: ESLint (flat config + prettier)
         run: npm run lint
+
+      - name: Prettier (check only)
+        run: npm run prettier:check

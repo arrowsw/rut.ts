@@ -98,11 +98,19 @@ const patterns: ValidationPatterns = {
   bodyDigits: /^\d+$/,
 }
 
-// `_input` is the offending value. It is deliberately never read: keeping it in
-// the signature documents that callers hand it over and `fail` refuses to echo
-// it into the thrown error (the anti-PII guarantee).
-const fail = <T>(_input: unknown, shouldThrow: boolean): T | null => {
-  if (shouldThrow) throw new InvalidRutError()
+// Reads one option from the caller's own object and ignores inherited values.
+// If another bug in the app pollutes `Object.prototype` (for example
+// `Object.prototype.requireValid = false`), an options object such as `{}`
+// would otherwise inherit that value and switch a check off.
+const ownOption = <T extends object, K extends keyof T>(options: T | undefined, key: K): T[K] | undefined =>
+  options != null && {}.hasOwnProperty.call(options, key) ? options[key] : undefined
+
+// Throws unless the caller set `throwOnError: false` themselves; otherwise
+// returns null. `_input` is the offending value. It is deliberately never read:
+// keeping it in the signature documents that callers hand it over and `fail`
+// refuses to echo it into the thrown error (the anti-PII guarantee).
+const fail = <T>(_input: unknown, options: SafeOptions | undefined): T | null => {
+  if (ownOption(options, 'throwOnError') ?? true) throw new InvalidRutError()
   return null
 }
 
@@ -285,7 +293,7 @@ function clean(rut: string, options: { throwOnError: true }): string
 function clean(rut: string, options?: SafeOptions): string | null
 function clean(rut: string, options?: SafeOptions): string | null {
   const parsed = parseLenient(rut)
-  return parsed ? parsed.body + parsed.verifier : fail<string>(rut, options?.throwOnError ?? true)
+  return parsed ? parsed.body + parsed.verifier : fail<string>(rut, options)
 }
 
 /**
@@ -303,7 +311,7 @@ function getBody(rut: string, options: { throwOnError: true }): string
 function getBody(rut: string, options?: SafeOptions): string | null
 function getBody(rut: string, options?: SafeOptions): string | null {
   const parsed = parseLenient(rut)
-  return parsed ? parsed.body : fail<string>(rut, options?.throwOnError ?? true)
+  return parsed ? parsed.body : fail<string>(rut, options)
 }
 
 /**
@@ -321,7 +329,7 @@ function getVerifier(rut: string, options: { throwOnError: true }): VerifierDigi
 function getVerifier(rut: string, options?: SafeOptions): VerifierDigit | null
 function getVerifier(rut: string, options?: SafeOptions): VerifierDigit | null {
   const parsed = parseLenient(rut)
-  return parsed ? parsed.verifier : fail<VerifierDigit>(rut, options?.throwOnError ?? true)
+  return parsed ? parsed.verifier : fail<VerifierDigit>(rut, options)
 }
 
 /**
@@ -338,7 +346,7 @@ function decompose(rut: string, options: { throwOnError: true }): DecomposedRut
 function decompose(rut: string, options?: SafeOptions): DecomposedRut | null
 function decompose(rut: string, options?: SafeOptions): DecomposedRut | null {
   const parsed = parseLenient(rut)
-  return parsed ?? fail<DecomposedRut>(rut, options?.throwOnError ?? true)
+  return parsed ?? fail<DecomposedRut>(rut, options)
 }
 
 /**
@@ -363,7 +371,7 @@ function calculateVerifier(rutBody: string, options: { throwOnError: true }): Ve
 function calculateVerifier(rutBody: string, options?: SafeOptions): VerifierDigit | null
 function calculateVerifier(rutBody: string, options?: SafeOptions): VerifierDigit | null {
   const cleanedRut = normalizeRutBody(rutBody)
-  if (cleanedRut === null) return fail<VerifierDigit>(rutBody, options?.throwOnError ?? true)
+  if (cleanedRut === null) return fail<VerifierDigit>(rutBody, options)
   return calculateVerifierForBody(cleanedRut)
 }
 
@@ -376,6 +384,12 @@ function calculateVerifier(rutBody: string, options?: SafeOptions): VerifierDigi
  * rejected, **including leading-zero padding** (`012.345.678-5`): a real RUT
  * carries no leading zeros, so normalize zero-padded values with `clean()`
  * first if you need to accept them.
+ *
+ * "Surrounding whitespace" is whatever JavaScript's `trim()` removes, Unicode
+ * spaces included (U+00A0, U+FEFF, U+3000…). So one RUT can be written in
+ * several accepted ways: `validate()` answers "is this a valid RUT?", not
+ * "is this the one spelling of it". To store or compare RUTs, use the output of
+ * `clean()` or `format()`, or `equals()`.
  * @param {unknown} rut - The RUT string to validate.
  * @param {ValidateOptions} [options] - Validation options.
  * @param {boolean} [options.strict=false] - If true, additionally rejects suspicious repeated-digit placeholders (e.g., 11.111.111-1).
@@ -384,7 +398,7 @@ function calculateVerifier(rutBody: string, options?: SafeOptions): VerifierDigi
 const validate = (rut: unknown, options?: ValidateOptions): boolean => {
   const decomposed = parseRutLike(rut)
   if (!decomposed) return false
-  if (options?.strict && isSuspicious(decomposed.body)) return false
+  if (ownOption(options, 'strict') && isSuspicious(decomposed.body)) return false
 
   return isValidDecomposed(decomposed)
 }
@@ -428,14 +442,19 @@ const formatIncremental = (rut: string, dots: boolean): string => {
  * **Note on incremental mode**: When `incremental: true`, the function formats the RUT progressively
  * as the user types, even for incomplete RUTs. This is useful for real-time formatting in form inputs,
  * but the formatted output may not represent a valid RUT until the input is complete.
- * Always use `validate()` to verify the final RUT.
+ * Always use `validate()` to verify the final RUT. Incremental mode never throws
+ * (a non-string gives `''`), and only `incremental: true` turns it on: it skips
+ * the Modulo 11 check, so a truthy stand-in such as the string `'false'` does not.
+ *
+ * An empty string gives `''` in every mode, without throwing: check for `''`
+ * before treating the result as a RUT.
  *
  * @param {string} rut - The RUT string to format.
  * @param {FormatOptions} [options] - The formatting options.
  * @param {boolean} [options.incremental=false] - Whether to format the RUT incrementally (for real-time input formatting).
  * @param {boolean} [options.dots=true] - Whether to include dot separators in the formatted RUT.
  * @param {boolean} [options.throwOnError=true] - If true (default), throws an error for invalid RUTs. If false, returns null. Ignored in incremental mode.
- * @returns {string | null} The formatted RUT string, or null if invalid and throwOnError is false.
+ * @returns {string | null} The formatted RUT string, `''` for an empty string, or null if invalid and throwOnError is false.
  * @throws {InvalidRutError} If the RUT is invalid and throwOnError is true (only in non-incremental mode).
  */
 function format(rut: string, options?: Omit<FormatOptions, 'throwOnError'>): string
@@ -443,21 +462,17 @@ function format(rut: string, options: FormatOptions & { throwOnError: false }): 
 function format(rut: string, options: FormatOptions & { throwOnError: true }): string
 function format(rut: string, options?: FormatOptions): string | null
 function format(rut: string, options?: FormatOptions): string | null {
-  const opts = {
-    incremental: options?.incremental ?? false,
-    dots: options?.dots ?? true,
-    throwOnError: options?.throwOnError ?? true,
-  }
+  const dots = ownOption(options, 'dots') ?? true
 
-  if (typeof rut !== 'string') return fail<string>(rut, opts.throwOnError)
+  if (ownOption(options, 'incremental') === true) return typeof rut === 'string' ? formatIncremental(rut, dots) : ''
+
+  if (typeof rut !== 'string') return fail<string>(rut, options)
   if (rut.length === 0) return ''
 
-  if (opts.incremental) return formatIncremental(rut, opts.dots)
-
   const parsed = parseLenient(rut)
-  if (parsed === null || !isValidDecomposed(parsed)) return fail<string>(rut, opts.throwOnError)
+  if (parsed === null || !isValidDecomposed(parsed)) return fail<string>(rut, options)
 
-  return formatDecomposed(parsed, opts.dots)
+  return formatDecomposed(parsed, dots)
 }
 
 const generateOne = (bodyLength: 7 | 8, outputFormat: GenerateFormat): string => {
@@ -481,26 +496,38 @@ const generateOne = (bodyLength: 7 | 8, outputFormat: GenerateFormat): string =>
  * supported runtime (Node >= 20 and all modern browsers). A `Math.random`
  * fallback is retained purely as a safety net for exotic embedded runtimes
  * without Web Crypto — generated RUTs are test fixtures, not secrets.
+ *
+ * Generated RUTs cover the real RUT range, so any one of them may belong to a
+ * real person: use them as test data, not as published sample identities.
  * @param {GenerateOptions} [options] - Generation options.
  * @param {7 | 8} [options.bodyLength=8] - Number of body digits to generate.
  * @param {'dotted' | 'compact' | 'hyphen'} [options.format='dotted'] - Output shape:
  *   `'dotted'` → `12.345.678-5`, `'hyphen'` → `12345678-5`, `'compact'` → `123456785`.
  * @param {number} [options.count] - When provided, returns an array of that many RUTs instead of one.
+ *   There is no upper limit: if the count comes from user input, cap it before
+ *   calling, because a very large count blocks the thread while it runs.
  * @returns {string | string[]} A valid RUT, or an array of them when `count` is given.
  */
 function generate(options: GenerateOptions & { count: number }): string[]
 function generate(options?: Omit<GenerateOptions, 'count'>): string
 function generate(options?: GenerateOptions): string | string[] {
-  const bodyLength = options?.bodyLength ?? 8
-  const outputFormat = options?.format ?? 'dotted'
+  const bodyLength = ownOption(options, 'bodyLength') ?? 8
+  const outputFormat = ownOption(options, 'format') ?? 'dotted'
+  const count = ownOption(options, 'count')
 
-  if (options?.count === undefined) return generateOne(bodyLength, outputFormat)
-  return Array.from({ length: options.count }, () => generateOne(bodyLength, outputFormat))
+  if (count === undefined) return generateOne(bodyLength, outputFormat)
+  return Array.from({ length: count }, () => generateOne(bodyLength, outputFormat))
 }
 
 /**
  * Type guard: narrows `rut` to the branded {@link Rut} type when it is a valid RUT.
  * Lets the type system propagate "this string was validated".
+ *
+ * A `Rut` is the caller's string as it came in, so the same RUT can arrive in
+ * several spellings (dots or not, `k` or `K`, surrounding whitespace). Store or
+ * compare `clean(rut)` or `format(rut)`, not the raw value. The brand does not
+ * record `{ strict: true }` either: a `Rut` narrowed without it may still be a
+ * repeated-digit placeholder such as `11.111.111-1`.
  * @param {unknown} rut - The value to check.
  * @param {ValidateOptions} [options] - Validation options (e.g. `{ strict: true }`).
  * @returns {boolean} True (and narrows to `Rut`) if valid, false otherwise.
@@ -511,6 +538,8 @@ const isValidRut = (rut: unknown, options?: ValidateOptions): rut is Rut => vali
  * Masks a RUT for safe logging/display, keeping only the leading group and the
  * verifier: `12.345.678-5` → `12.***.***-5`. Useful alongside the library's
  * anti-PII posture. Validates the shape (not the Modulo 11 verifier) first.
+ * It is not anonymization: with the leading digits and the verifier kept, about
+ * 90,000 RUTs share each masked value, so treat masked RUTs as personal data.
  * @param {string} rut - The RUT string to mask.
  * @param {SafeOptions} [options] - Configuration options.
  * @param {boolean} [options.throwOnError=true] - If true (default), throws for invalid RUTs. If false, returns null.
@@ -523,7 +552,7 @@ function mask(rut: string, options: { throwOnError: true }): string
 function mask(rut: string, options?: SafeOptions): string | null
 function mask(rut: string, options?: SafeOptions): string | null {
   const parsed = parseLenient(rut)
-  if (parsed === null) return fail<string>(rut, options?.throwOnError ?? true)
+  if (parsed === null) return fail<string>(rut, options)
 
   const head = parsed.body.slice(0, parsed.body.length - 6) // 1 digit for a 7-digit body, 2 for an 8-digit body
   return `${head}.***.***-${parsed.verifier}`
@@ -558,7 +587,7 @@ const equals = (a: unknown, b: unknown, options?: EqualsOptions): boolean => {
   const parsedB = parseLenient(b)
   if (parsedB === null || parsedA.verifier !== parsedB.verifier || parsedA.body !== parsedB.body) return false
 
-  return options?.requireValid === false || isValidDecomposed(parsedA)
+  return ownOption(options, 'requireValid') === false || isValidDecomposed(parsedA)
 }
 
 /**

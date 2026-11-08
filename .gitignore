@@ -5,6 +5,8 @@ reports/
 .idea/
 .vscode/
 node_modules
+# Local Claude Code settings and worktrees
+.claude/
 .DS_Store
 
 docs/node_modules

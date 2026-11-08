@@ -1,4 +1,4 @@
-import { validate, isRutLike } from '../src'
+import { clean, validate, isRutLike } from '../src'
 
 describe('validate', () => {
   describe('type safety (accepts unknown)', () => {
@@ -223,6 +223,18 @@ describe('validate', () => {
       ['12.345.678-К', 'Cyrillic К (U+041A) instead of ASCII K'],
     ])('rejects non-ASCII look-alike input: %p (%s)', (rut) => {
       expect(validate(rut)).toBe(false)
+    })
+
+    // Documented, not a bypass: "surrounding whitespace" is whatever `trim()`
+    // removes, and that includes Unicode spaces. These spellings are valid but
+    // not canonical, so storage must key on `clean()`, which collapses them.
+    test.each([
+      ['﻿12.345.678-5', 'leading BOM / zero-width no-break space (U+FEFF)'],
+      ['12.345.678-5　', 'trailing ideographic space (U+3000)'],
+      [' 12345678-5 ', 'no-break spaces (U+00A0)'],
+    ])('accepts trim() whitespace around a valid RUT: %p (%s)', (rut) => {
+      expect(validate(rut)).toBe(true)
+      expect(clean(rut)).toBe('123456785')
     })
   })
 
